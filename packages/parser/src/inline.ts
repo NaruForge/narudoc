@@ -1,7 +1,7 @@
 import type { Inline } from '@naruforge/narudoc-model';
 
 /** Deliberately small inline dialect; unknown markup remains literal text. */
-export function parseInline(source: string, depth = 0): Inline[] {
+export function parseInline(source: string, depth = 0, sourceOffset?: number): Inline[] {
   if (depth > 16) return [{ type: 'text', value: source }];
   const out: Inline[] = [];
   let text = '';
@@ -20,7 +20,7 @@ export function parseInline(source: string, depth = 0): Inline[] {
       const marker = source.startsWith('**', i) ? '**' : '*';
       const end = source.indexOf(marker, i + marker.length);
       if (end > i + marker.length) {
-        flush(); out.push({ type: marker === '**' ? 'strong' : 'emphasis', children: parseInline(source.slice(i + marker.length, end), depth + 1) });
+        flush(); out.push({ type: marker === '**' ? 'strong' : 'emphasis', children: parseInline(source.slice(i + marker.length, end), depth + 1, sourceOffset === undefined ? undefined : sourceOffset + i + marker.length) });
         i = end + marker.length; continue;
       }
     }
@@ -38,7 +38,8 @@ export function parseInline(source: string, depth = 0): Inline[] {
         }
       }
       if (labelEnd > i + 1 && linkEnd !== -1) {
-        flush(); out.push({ type: 'link', url: source.slice(labelEnd + 2, linkEnd), children: [{ type: 'text', value: source.slice(i + 1, labelEnd) }] });
+        flush(); out.push({ type: 'link', url: source.slice(labelEnd + 2, linkEnd), children: [{ type: 'text', value: source.slice(i + 1, labelEnd) }],
+          ...(sourceOffset === undefined ? {} : { urlRange: { start: sourceOffset + labelEnd + 2, end: sourceOffset + linkEnd } }) });
         i = linkEnd + 1; continue;
       }
     }

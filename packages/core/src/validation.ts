@@ -1,12 +1,5 @@
-import { NaruError, type Block, type Diagnostic, type DocumentSnapshot, type Inline } from '@naruforge/narudoc-model';
-function inlines(block: Block): Inline[][] {
-  switch (block.type) {
-    case 'heading': case 'paragraph': return [block.inline];
-    case 'list': return block.items;
-    case 'directive': return [block.body];
-    default: return [];
-  }
-}
+import { NaruError, type Diagnostic, type DocumentSnapshot } from '@naruforge/narudoc-model';
+import { internalReferences } from './references.js';
 export function validateDocument(doc: DocumentSnapshot): Diagnostic[] {
   const out = [...doc.diagnostics], ids = new Set<string>();
   for (const block of doc.blocks) {
@@ -15,19 +8,11 @@ export function validateDocument(doc: DocumentSnapshot): Diagnostic[] {
       ids.add(block.id);
     }
   }
-  const visit = (nodes: Inline[], block: Block): void => {
-    for (const node of nodes) {
-      if (node.type === 'link' && node.url.startsWith('#')) {
-        let id = '';
-        try { id = decodeURIComponent(node.url.slice(1)); } catch { /* Invalid fragments are broken references. */ }
-        if (!ids.has(id)) out.push({ code: 'NARU_REFERENCE', message: `Broken internal reference: ${node.url}`, severity: 'error', range: block.range });
-      }
-      if ('children' in node) visit(node.children, block);
-    }
-  };
+  for (const { block, link, id } of internalReferences(doc)) {
+    if (!ids.has(id)) out.push({ code: 'NARU_REFERENCE', message: `Broken internal reference: ${link.url}`, severity: 'error', range: block.range });
+  }
   let previousLevel = 0;
   for (const block of doc.blocks) {
-    for (const group of inlines(block)) visit(group, block);
     if (block.type === 'heading') {
       if (block.level > previousLevel + 1) out.push({ code: 'NARU_HIERARCHY', message: 'Heading level skips a level.', severity: 'warning', range: block.range });
       previousLevel = block.level;

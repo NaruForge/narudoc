@@ -3,6 +3,7 @@ import { planOperation } from './operations.js';
 import { assertValid } from './validation.js';
 
 const fields: Record<Operation['type'], readonly string[]> = {
+  renameId: ['type', 'id', 'newId'],
   setHeadingTitle: ['type', 'id', 'title'],
   insertSection: ['type', 'after', 'id', 'title'],
   removeSection: ['type', 'id'],

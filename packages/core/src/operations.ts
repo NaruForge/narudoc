@@ -3,6 +3,7 @@ import { parseDocument } from '@naruforge/narudoc-parser';
 import { getById, getSection } from './query.js';
 import { assertValid } from './validation.js';
 import { applyTextEdits, minimalEdit } from './patch.js';
+import { internalReferences } from './references.js';
 
 function scalar(value: string, label: string, empty = false): void {
   if (typeof value !== 'string' || !wellFormed(value) || /[\x00-\x1f\x7f]/.test(value) || value !== value.trim() || (!empty && !value)) throw new NaruError('NARU_ARGUMENT', `${label} must be a trimmed single-line string.`);
@@ -31,6 +32,23 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
   const source = doc.source;
   let edits: TextEdit[];
   switch (operation.type) {
+    case 'renameId': {
+      scalar(operation.newId, 'New ID');
+      id(operation.newId);
+      const node = getById(doc, operation.id);
+      if (operation.newId === operation.id) { edits = []; break; }
+      if (doc.blocks.some(block => 'id' in block && block.id === operation.newId)) throw new NaruError('NARU_ARGUMENT', `ID already exists: ${operation.newId}`);
+      const range = node.type === 'heading' ? node.idRange : node.type === 'directive' ? node.attributes.find(attr => attr.key === 'id')?.valueRange : undefined;
+      if (!range || source.slice(range.start, range.end) !== operation.id) throw new NaruError('NARU_PATCH', 'Missing or inconsistent ID source range; reparse the source.');
+      edits = minimalEdit(source, range.start, range.end, operation.newId);
+      for (const reference of internalReferences(doc)) {
+        if (reference.id !== operation.id) continue;
+        const urlRange = reference.link.urlRange;
+        if (!urlRange || source.slice(urlRange.start, urlRange.end) !== reference.link.url) throw new NaruError('NARU_PATCH', 'Missing or inconsistent link source range; reparse the source.');
+        edits.push(...minimalEdit(source, urlRange.start, urlRange.end, `#${operation.newId}`));
+      }
+      break;
+    }
     case 'setHeadingTitle': {
       title(operation.title);
       const heading = getSection(doc, operation.id).heading;
@@ -74,7 +92,7 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
     case 'setDirectiveAttribute': {
       const node = getById(doc, operation.id);
       if (node.type !== 'directive') throw new NaruError('NARU_TARGET', 'Target is not a directive.');
-      if (!validKey(operation.key) || operation.key === 'id') throw new NaruError('NARU_ARGUMENT', 'Invalid attribute key; ID changes need a reference-aware operation.');
+      if (!validKey(operation.key) || operation.key === 'id') throw new NaruError('NARU_ARGUMENT', 'Invalid attribute key; use renameId for ID changes.');
       scalar(operation.value, 'Attribute value', true);
       const attr = node.attributes.find(a => a.key === operation.key);
       edits = attr ? minimalEdit(source, attr.valueRange.start, attr.valueRange.end, operation.value) : [{ start: node.headerEnd, end: node.headerEnd, expected: '', text: `${operation.key}: ${operation.value}${doc.eol}` }]; break;

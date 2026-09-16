@@ -23,6 +23,7 @@ Write:
   narudoc section move FILE --id ID --after ID
   narudoc paragraph replace FILE --id SECTION --index 0 --text TEXT
   narudoc directive set FILE --id ID --key KEY --value VALUE
+  narudoc id rename FILE --id OLD --new-id NEW
   narudoc batch FILE --operations PLAN.json --revision SHA256
   Batch plans may use --operations - for stdin; revision is required for batch.
   Existing-document writes accept --dry-run, --json, --revision SHA256.
@@ -35,6 +36,7 @@ const commands: Record<string, string[]> = {
   inspect: ['stdin'], outline: ['stdin'], get: ['stdin', 'id'], validate: ['stdin'],
   render: ['stdin', 'to', 'output'], new: ['title', 'id'],
   batch: ['operations', 'revision', 'dry-run'],
+  'id rename': ['id', 'new-id', 'revision', 'dry-run'],
   'heading set-title': ['id', 'title', 'dry-run', 'revision'],
   'section insert': ['after', 'id', 'title', 'dry-run', 'revision'],
   'section remove': ['id', 'dry-run', 'revision'],
@@ -64,6 +66,7 @@ export async function main(args: string[]): Promise<number> {
       index: { type: 'string' }, text: { type: 'string' }, key: { type: 'string' },
       value: { type: 'string' }, revision: { type: 'string' }, to: { type: 'string' }, output: { type: 'string' },
       operations: { type: 'string' },
+      'new-id': { type: 'string' },
     } as const;
     const { values, positionals, tokens } = parseArgs({ args, options, allowPositionals: true, strict: true, tokens: true });
     const seen = new Set<string>();
@@ -79,7 +82,7 @@ export async function main(args: string[]): Promise<number> {
     }
     const positions = [...positionals];
     let command = positions.shift() ?? '';
-    if (['heading', 'section', 'paragraph', 'directive'].includes(command)) command += ' ' + (positions.shift() ?? '');
+    if (['heading', 'section', 'paragraph', 'directive', 'id'].includes(command)) command += ' ' + (positions.shift() ?? '');
     const allowed = commands[command];
     if (!allowed) throw new NaruError('NARU_ARGUMENT', 'Unknown command; run narudoc --help.');
     for (const key of Object.keys(values)) if (!['json', ...allowed].includes(key)) throw new NaruError('NARU_ARGUMENT', `--${key} is not valid for ${command}.`);
@@ -157,6 +160,7 @@ export async function main(args: string[]): Promise<number> {
     }
     let operation: Operation;
     switch (command) {
+      case 'id rename': operation = { type: 'renameId', id: need('id'), newId: need('new-id') }; break;
       case 'heading set-title': operation = { type: 'setHeadingTitle', id: need('id'), title: need('title') }; break;
       case 'section insert': operation = { type: 'insertSection', id: need('id'), after: need('after'), title: need('title') }; break;
       case 'section remove': operation = { type: 'removeSection', id: need('id') }; break;
