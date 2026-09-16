@@ -93,3 +93,11 @@ ID 변경은 `renameId`로 정의와 같은 문서 내부 참조를 함께 수�
 `setTableCell`은 `sectionId`, 직접 `tableIndex`, `part: header|body`, `row`, `column`, `text`를 받는다. Index/좌표는 0-based, header row는 0이다. 셀 contentRange 안의 최소 patch만 적용하고 padding·separator·다른 셀은 유지한다. 같은 내용은 no-op이다. 기존 revision/lock/크기/batch 저장 규칙을 적용하며 원문 offset 입력은 제공하지 않는다. 참조 validation/rename은 실제 셀 링크를 한 번 순회하고 code의 가짜 링크는 무시한다. Renderer는 모델에서 안전한 table HTML을 만든다.
 
 **0.0.2 → 0.0.3:** Block union/inspect JSON에 table이 추가된다. 이전 버전에서 literal paragraph였던 위 문법은 이제 table이다. Section/directive 문단 index는 여전히 직접 paragraph만 세지만, 예전 표 모양 paragraph가 빠져 같은 파일의 숫자 index는 달라질 수 있다. 소비자는 table 분기를 추가하고 원문을 재파싱·조회한 뒤 편집한다. 자동 파일 변환은 없고 CLI envelope schemaVersion은 1을 유지한다. 근거는 [Proposed ADR 0007](adr/0007-bounded-pipe-tables.md)이다.
+
+## 일반 text 위치와 편집
+
+Parser의 ordinary text Inline에는 선택적 절대 `range`가 추가된다. `parseInline`에 sourceOffset을 제공할 때 기록하며 기존 link urlRange는 유지한다. Escape를 해석한 text는 range 길이와 표시 길이가 다를 수 있으므로 직접 offset mapping을 가정하면 안 된다. Source를 재파싱해 최신 범위를 사용한다.
+
+`setInlineText`는 [CLI 계약](cli.md#일반-inline-text-편집)의 semantic target/path/expected로 단일 text run을 고른다. 원문과 표시 text가 동일한 run에서만 최소 patch를 허용한다. 결과 inline 구조와 전체 validation을 확인하므로 markup/블록/ID를 몰래 바꾸지 못한다. 지원 범위 밖 escape/multiline/link/code는 보호한다. 별도 visual 전용 문서 규칙은 없다.
+
+Inline node의 선택적 `range`는 code/strong/emphasis/link의 바깥 문법 경계에도 기록한다. 이 범위는 일반 text가 삭제된 자리의 의미적 gap 삽입을 위한 것이며 node 자체의 raw 편집 허가는 아니다. `expected: ""`의 gap 삽입도 동일한 결과 구조·참조 검증을 거친다.

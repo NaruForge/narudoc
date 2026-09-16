@@ -18,6 +18,7 @@ Read:
   Read commands accept '-' or --stdin. HTML defaults to stdout.
 
 Write:
+  narudoc text set FILE --kind heading|paragraph|directiveParagraph --id ID --index N --path N.N --expected TEXT --text TEXT
   narudoc table insert FILE --section ID --from INPUT.json
   narudoc table set-cell FILE --section ID --index N --part header|body --row N --column N --text TEXT
   narudoc new FILE [--title TITLE] [--id ID]
@@ -41,6 +42,7 @@ Exit: 0 success; 1 internal; 2 arguments/target; 3 document; 4 conflict; 5 I/O.
 Offsets: UTF-16 code units, half-open [start,end). No GUI, telemetry or network.
 `;
 const commands: Record<string, string[]> = {
+  'text set': ['kind', 'id', 'index', 'path', 'expected', 'text', 'dry-run', 'revision'],
   'table get': ['stdin', 'section', 'index'],
   'table insert': ['section', 'from', 'dry-run', 'revision'],
   'table set-cell': ['section', 'index', 'part', 'row', 'column', 'text', 'dry-run', 'revision'],
@@ -84,6 +86,7 @@ export async function main(args: string[]): Promise<number> {
       section: { type: 'string' }, from: { type: 'string' },
       parent: { type: 'string' },
       part: { type: 'string' }, row: { type: 'string' }, column: { type: 'string' },
+      kind: { type: 'string' }, path: { type: 'string' }, expected: { type: 'string' },
       'new-id': { type: 'string' },
     } as const;
     const { values, positionals, tokens } = parseArgs({ args, options, allowPositionals: true, strict: true, tokens: true });
@@ -100,7 +103,7 @@ export async function main(args: string[]): Promise<number> {
     }
     const positions = [...positionals];
     let command = positions.shift() ?? '';
-    if (['heading', 'section', 'paragraph', 'directive', 'id', 'table'].includes(command)) command += ' ' + (positions.shift() ?? '');
+    if (['heading', 'section', 'paragraph', 'directive', 'id', 'table', 'text'].includes(command)) command += ' ' + (positions.shift() ?? '');
     const allowed = commands[command];
     if (!allowed) throw new NaruError('NARU_ARGUMENT', 'Unknown command; run narudoc --help.');
     for (const key of Object.keys(values)) if (!['json', ...allowed].includes(key)) throw new NaruError('NARU_ARGUMENT', `--${key} is not valid for ${command}.`);
@@ -187,6 +190,11 @@ export async function main(args: string[]): Promise<number> {
     }
     let operation: Operation;
     switch (command) {
+      case 'text set': {
+        const kind = need('kind');
+        if (!['heading', 'paragraph', 'directiveParagraph'].includes(kind)) throw new NaruError('NARU_ARGUMENT', 'Unknown text target kind.');
+        operation = { type: 'setInlineText', kind: kind as 'heading' | 'paragraph' | 'directiveParagraph', id: need('id'), index: integer('index'), path: need('path'), expected: need('expected'), text: need('text') }; break;
+      }
       case 'table insert': {
         const input = need('from');
         const text = input === '-' ? await readStdin() : (await load(input)).source;

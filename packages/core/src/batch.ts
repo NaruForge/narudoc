@@ -5,6 +5,7 @@ import { readInsertDirective } from './directive-input.js';
 import { readTableInput } from './table-input.js';
 
 const fields: Record<Operation['type'], readonly string[]> = {
+  setInlineText: ['type', 'kind', 'id', 'index', 'path', 'expected', 'text'],
   insertTable: ['type', 'sectionId', 'headers', 'rows'],
   setTableCell: ['type', 'sectionId', 'tableIndex', 'part', 'row', 'column', 'text'],
   insertDirective: ['type', 'sectionId', 'name', 'id', 'attributes', 'children'],

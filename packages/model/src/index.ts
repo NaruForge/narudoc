@@ -1,10 +1,12 @@
 /** All offsets are UTF-16 code units, half-open [start, end). */
 export interface Range { start: number; end: number }
 export interface Diagnostic { code: string; message: string; severity: 'error' | 'warning'; range: Range }
-export type Inline =
+export type Inline = (
   | { type: 'text' | 'code'; value: string }
   | { type: 'emphasis' | 'strong'; children: Inline[] }
-  | { type: 'link'; url: string; children: Inline[]; urlRange?: Range };
+  | { type: 'link'; url: string; children: Inline[]; urlRange?: Range }) & { range?: Range };
+export interface TextTarget { kind: 'heading' | 'paragraph' | 'directiveParagraph'; id: string; index: number }
+export type SetInlineTextOperation = TextTarget & { type: 'setInlineText'; path: string; expected: string; text: string };
 export interface Attribute { key: string; value: string; range: Range; valueRange: Range }
 interface Base { range: Range }
 export interface Heading extends Base {
@@ -36,6 +38,7 @@ export interface DocumentSnapshot {
 export interface TextEdit extends Range { text: string; expected: string }
 export interface Section extends Range { heading: Heading; parentStart: number | null }
 export type Operation =
+  | SetInlineTextOperation
   | (TableInput & { type: 'insertTable'; sectionId: string })
   | { type: 'setTableCell'; sectionId: string; tableIndex: number; part: 'header' | 'body'; row: number; column: number; text: string }
   | InsertDirectiveOperation

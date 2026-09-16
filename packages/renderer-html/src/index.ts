@@ -32,6 +32,7 @@ function renderBlock(block: Block): string {
     case 'directive': return `<aside${block.id === undefined ? '' : ` id="${escapeHtml(block.id)}"`} data-kind="${escapeHtml(block.name)}"><strong>${escapeHtml(block.name)}</strong><dl>${block.attributes.filter(a => a.key !== 'id').map(a => `<dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd>`).join('')}</dl>${block.children.map(renderBlock).join('')}</aside>`;
   }
 }
+export { renderBlock as renderBlockHtml };
 /** Pure projection. No filesystem, network, editor, or raw HTML execution. */
 export function renderHtml(doc: DocumentSnapshot): string {
   const metadata = doc.blocks.find(b => b.type === 'metadata');

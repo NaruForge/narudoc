@@ -1,0 +1,26 @@
+## Control  {#control}
+
+The **reference** is 400 V. See [details](#details).
+
+Keep this paragraph unchanged.
+
+- Protected list
+
+```text
+<script>window.documentExecuted = true</script>
+```
+
+| Parameter | Value |
+| --- | --- |
+| Period | 50 |
+
+:::requirement
+id: REQ-001
+status: draft
+
+The controller shall validate its inputs.
+:::
+
+## Details {#details}
+
+한글 😀 and [unsafe](javascript:alert).

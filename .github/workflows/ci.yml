@@ -28,6 +28,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: node scripts/verify-authoring.mjs
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser
       - run: pnpm exec narudoc --version
       - run: pnpm exec narudoc validate examples/engineering.narudoc
       - run: git diff --exit-code

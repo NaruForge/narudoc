@@ -8,6 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "spike": "node scripts/build-spike.mjs && node scripts/serve-spike.mjs",
+    "test:browser": "node scripts/build-spike.mjs && playwright test",
     "build": "node scripts/build.mjs",
     "typecheck": "node scripts/build.mjs",
     "test": "node scripts/build.mjs && node --test tests/acceptance/*.test.mjs",
@@ -15,7 +17,9 @@
   },
   "devDependencies": {
     "@naruforge/narudoc": "workspace:*",
+    "@playwright/test": "1.63.0",
     "@types/node": "24.0.4",
+    "esbuild": "0.28.2",
     "typescript": "5.8.3"
   }
 }
