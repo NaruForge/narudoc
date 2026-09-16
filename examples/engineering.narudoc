@@ -1,0 +1,30 @@
+---
+title: Bidirectional converter control
+---
+# System Architecture {#system-architecture}
+
+This public example uses **illustrative**, non-project-specific values.
+See [DC-link control](#dc-link-control) and [the requirement](#REQ-001).
+
+## DC-Link Control {#dc-link-control}
+
+The target voltage is 400 V.
+
+* Preserve   these spaces.
+* Verify the reference before applying changes.
+
+:::requirement
+id: REQ-001
+status: draft
+
+The controller shall validate the requested operating mode.
+:::
+
+## Validation {#validation}
+
+한글, English, µ, Ω, °C and supplementary Unicode: 😀.
+
+```text
+# Not a heading {#not-a-heading}
+CLI → Core → Source patch
+```

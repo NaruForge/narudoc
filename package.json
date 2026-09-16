@@ -1,0 +1,21 @@
+{
+  "name": "narudoc-workspace",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test tests/acceptance/*.test.mjs",
+    "narudoc": "node apps/cli/bin/narudoc.mjs"
+  },
+  "devDependencies": {
+    "@naruforge/narudoc": "workspace:*",
+    "@types/node": "24.0.4",
+    "typescript": "5.8.3"
+  }
+}
