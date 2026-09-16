@@ -31,6 +31,7 @@ export type Operation =
   | { type: 'removeSection'; id: string }
   | { type: 'moveSection'; id: string; after: string }
   | { type: 'replaceParagraph'; id: string; index: number; text: string }
+  | { type: 'insertParagraph'; id: string; index: number; text: string }
   | { type: 'replaceDirectiveParagraph'; id: string; index: number; text: string }
   | { type: 'setDirectiveAttribute'; id: string; key: string; value: string };
 export interface EditPlan { baseSource: string; edits: TextEdit[]; next: DocumentSnapshot }

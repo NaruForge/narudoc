@@ -27,6 +27,13 @@ export function createDocument(documentTitle = 'Untitled', documentId = 'documen
   const doc = parseDocument(`# ${documentTitle} {#${documentId}}\n`);
   assertValid(doc); return doc;
 }
+/** Retain the existing whitespace gap, adding only enough line breaks for a blank line. */
+function paragraphPadding(gap: string, eol: string, beforeGap: boolean): string {
+  let padding = '';
+  // Count after concatenation: a bare CR adjacent to an LF becomes one CRLF.
+  while (((beforeGap ? padding + gap : gap + padding).match(/\r\n|\r|\n/g)?.length ?? 0) < 2) padding += eol;
+  return padding;
+}
 export function planOperation(doc: DocumentSnapshot, operation: Operation): EditPlan {
   assertValid(doc);
   const source = doc.source;
@@ -72,6 +79,29 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
       const chunk = source.slice(target.start, target.end), point = after.end;
       const text = separator(source.slice(0, point), chunk, doc.eol) + chunk + separator(chunk, source.slice(point), doc.eol);
       edits = [{ start: target.start, end: target.end, expected: chunk, text: '' }, { start: point, end: point, expected: '', text }]; break;
+    }
+    case 'insertParagraph': {
+      const section = getSection(doc, operation.id);
+      const start = doc.blocks.indexOf(section.heading) + 1;
+      let end = start;
+      while (end < doc.blocks.length && doc.blocks[end]!.type !== 'heading') end++;
+      const paragraphs = doc.blocks.slice(start, end).filter(block => block.type === 'paragraph');
+      if (!Number.isSafeInteger(operation.index) || operation.index < 0 || operation.index > paragraphs.length) throw new NaruError('NARU_TARGET', 'Paragraph insertion index is out of range.');
+      if (typeof operation.text !== 'string' || !wellFormed(operation.text)) throw new NaruError('NARU_ARGUMENT', 'Text must be a well-formed Unicode string.');
+      const paragraph = operation.text.replace(/\r\n|\r|\n/g, doc.eol);
+      const parsed = parseDocument(paragraph), block = parsed.blocks[0];
+      if (parsed.diagnostics.some(d => d.severity === 'error') || parsed.blocks.length !== 1 ||
+          block?.type !== 'paragraph' || block.range.start !== 0 || block.range.end !== paragraph.length) {
+        throw new NaruError('NARU_ARGUMENT', 'Text must be exactly one paragraph without surrounding blank lines.');
+      }
+      const target = paragraphs[operation.index];
+      const nextIndex = target ? doc.blocks.indexOf(target) : end;
+      const previous = doc.blocks[nextIndex - 1]!;
+      const next = doc.blocks[nextIndex];
+      const point = target ? target.range.start : previous.range.end;
+      const left = paragraphPadding(source.slice(previous.range.end, point), doc.eol, false);
+      const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
+      edits = [{ start: point, end: point, expected: '', text: left + paragraph + right }]; break;
     }
     case 'replaceParagraph': {
       const section = getSection(doc, operation.id);

@@ -26,6 +26,8 @@ Edit 범위는 UTF-16 code unit의 반열린 구간 [start, end)이다. 변경 �
 
 `planBatch`는 기존 operation을 메모리에서 순서대로 계획하고 매 단계 재파싱·검증한다. 각 단계 edits는 해당 단계 입력 snapshot에 속하며 최초 원문의 patch로 합치지 않는다. CLI는 초기 revision과 최종 크기를 확인하고 전체 성공 시 기존 save를 한 번 호출한다. 실패한 중간 결과는 저장하지 않는다. 입력/응답은 [CLI 계약](cli.md), 선택 근거와 대안은 [순차 배치 ADR](adr/0005-sequential-batch-edits.md)에 있다.
 
+`insertParagraph`는 기존 section 문단과 같은 범위(다음 heading 전)의 문단 index로 삽입 위치를 정한다. 기존 문단 앞 또는 직접 본문의 마지막 블록 끝에 길이 0의 patch 하나를 만든다. 기존 공백 구간을 유지하고 인접 블록과의 분리에 부족한 개행만 추가하며, CR과 LF의 결합도 계산한다. 삽입 입력의 단일 문단 검사와 최종 전체 문서 재파싱·검증은 Core가 소유한다. 기존 범위 patch·저장 구조의 확장이므로 별도 ADR을 추가하지 않는다.
+
 유지 제안의 대안과 결과: [원본 보존 편집 방식](adr/0001-source-preserving-edits.md), [위치 단위](adr/0002-offset-encoding.md).
 
 ID 변경은 parser가 기록한 heading `idRange`, directive의 ID 속성 `valueRange`, inline link `urlRange`를 최소 patch로 수정한다. 참조 순회와 fragment 해석은 Core validation과 편집이 공유한다. 문법을 Core에서 다시 스캔하지 않으며 전체 문자열 검색·치환을 사용하지 않는다. 기존 UTF-16/원문 범위 편집 선택을 확장 적용하므로 별도 ADR을 추가하지 않는다.

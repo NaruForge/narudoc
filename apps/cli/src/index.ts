@@ -22,6 +22,7 @@ Write:
   narudoc section remove FILE --id ID
   narudoc section move FILE --id ID --after ID
   narudoc paragraph replace FILE --id SECTION --index 0 --text TEXT
+  narudoc paragraph insert FILE --id SECTION --index 0 --text TEXT
   narudoc directive set FILE --id ID --key KEY --value VALUE
   narudoc directive replace-paragraph FILE --id ID --index 0 --text TEXT
   narudoc id rename FILE --id OLD --new-id NEW
@@ -43,6 +44,7 @@ const commands: Record<string, string[]> = {
   'section remove': ['id', 'dry-run', 'revision'],
   'section move': ['id', 'after', 'dry-run', 'revision'],
   'paragraph replace': ['id', 'index', 'text', 'dry-run', 'revision'],
+  'paragraph insert': ['id', 'index', 'text', 'dry-run', 'revision'],
   'directive set': ['id', 'key', 'value', 'dry-run', 'revision'],
   'directive replace-paragraph': ['id', 'index', 'text', 'dry-run', 'revision'],
 };
@@ -168,10 +170,12 @@ export async function main(args: string[]): Promise<number> {
       case 'section remove': operation = { type: 'removeSection', id: need('id') }; break;
       case 'section move': operation = { type: 'moveSection', id: need('id'), after: need('after') }; break;
       case 'paragraph replace':
+      case 'paragraph insert':
       case 'directive replace-paragraph': {
         const index = need('index');
         if (!/^\d+$/.test(index)) throw new NaruError('NARU_ARGUMENT', '--index must be a non-negative integer.');
-        operation = { type: command === 'paragraph replace' ? 'replaceParagraph' : 'replaceDirectiveParagraph', id: need('id'), index: Number(index), text: need('text') }; break;
+        const type = command === 'paragraph insert' ? 'insertParagraph' : command === 'paragraph replace' ? 'replaceParagraph' : 'replaceDirectiveParagraph';
+        operation = { type, id: need('id'), index: Number(index), text: need('text') }; break;
       }
       case 'directive set': operation = { type: 'setDirectiveAttribute', id: need('id'), key: need('key'), value: need('value') }; break;
       default: throw new NaruError('NARU_ARGUMENT', 'Unknown operation.');
