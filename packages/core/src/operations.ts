@@ -89,6 +89,29 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
       const target = direct[operation.index]!;
       edits = minimalEdit(source, target.range.start, target.range.end, replacement); break;
     }
+    case 'replaceDirectiveParagraph': {
+      const node = getById(doc, operation.id);
+      if (node.type !== 'directive') throw new NaruError('NARU_TARGET', 'Target is not a directive.');
+      const paragraphs = node.children.filter(child => child.type === 'paragraph');
+      if (!Number.isSafeInteger(operation.index) || operation.index < 0 || !paragraphs[operation.index]) throw new NaruError('NARU_TARGET', 'Directive paragraph index is out of range.');
+      if (typeof operation.text !== 'string' || !wellFormed(operation.text)) throw new NaruError('NARU_ARGUMENT', 'Replacement must be a well-formed Unicode string.');
+      const target = paragraphs[operation.index]!;
+      // An exact no-op must also retain mixed line endings within this paragraph.
+      if (operation.text === source.slice(target.range.start, target.range.end)) { edits = []; break; }
+      const replacement = operation.text.replace(/\r\n|\r|\n/g, doc.eol);
+      // Parse in directive context: headings/metadata are literal here, while
+      // delimiters, lists and fences must not turn a paragraph edit into structure edits.
+      const prefix = `:::validation${doc.eol}${doc.eol}`;
+      const parsed = parseDocument(`${prefix}${replacement}${doc.eol}:::`);
+      const wrapper = parsed.blocks[0];
+      const child = wrapper?.type === 'directive' ? wrapper.children[0] : undefined;
+      if (parsed.diagnostics.some(d => d.severity === 'error') || parsed.blocks.length !== 1 ||
+          wrapper?.type !== 'directive' || wrapper.children.length !== 1 || child?.type !== 'paragraph' ||
+          child.range.start !== prefix.length || child.range.end !== prefix.length + replacement.length) {
+        throw new NaruError('NARU_ARGUMENT', 'Replacement must be exactly one directive paragraph without surrounding blank lines.');
+      }
+      edits = minimalEdit(source, target.range.start, target.range.end, replacement); break;
+    }
     case 'setDirectiveAttribute': {
       const node = getById(doc, operation.id);
       if (node.type !== 'directive') throw new NaruError('NARU_TARGET', 'Target is not a directive.');

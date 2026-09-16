@@ -22,6 +22,7 @@
 | `section move FILE --id ID --after ID` | 편집 공통 옵션 | 같은 부모·같은 level의 섹션 이동 |
 | `paragraph replace FILE --id SECTION --index 0 --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 자식 문단 교체; index는 0부터 시작 |
 | `directive set FILE --id ID --key KEY --value VALUE` | 편집 공통 옵션 | 속성 추가·변경; ID 변경 제외 |
+| `directive replace-paragraph FILE --id ID --index N --text TEXT` | 편집 공통 옵션 | Directive 본문의 N번째 문단 교체; 목록·코드는 세지 않음 |
 | `id rename FILE --id OLD --new-id NEW` | 편집 공통 옵션 | ID 정의와 같은 문서 내부 참조를 함께 변경 |
 | `batch FILE --operations PLAN --revision SHA256` | `--dry-run` | 단일 문서의 의미 편집 목록을 순차 검증 후 한 번 저장 |
 
@@ -116,9 +117,25 @@ pnpm exec narudoc id rename examples/engineering.narudoc --id REQ-001 --new-id R
 
 배치에는 `{ "type": "renameId", "id": "REQ-001", "newId": "REQ-CTRL-001" }`을 넣는다. ID와 참조가 같은 단계에서 바뀌므로 중간 참조 오류 없이 다음 단계에서 새 ID를 사용할 수 있다. 앞선 단계의 원문 범위가 바뀌어도 새 snapshot에서 위치를 계산한다.
 
+## Directive 본문 문단 편집
+
+`directive replace-paragraph FILE --id ID --index N --text TEXT`는 ID가 있는 generic directive(예: requirement)의 본문 문단 하나를 교체한다. `get FILE --id ID --json`으로 `node.children`을 조회하고 paragraph만 센 0-based index를 지정한다. 전체 children 배열 index와 다를 수 있다. 목록·코드 편집, 문단 삽입·삭제는 지원하지 않는다.
+
+```sh
+pnpm exec narudoc get examples/engineering.narudoc --id REQ-001 --json
+pnpm exec narudoc directive replace-paragraph examples/engineering.narudoc --id REQ-001 --index 0 --text "The controller shall validate all inputs." --dry-run --json
+```
+
+실제 저장에는 조회한 `--revision`을 함께 전달한다. 입력은 directive 문맥에서 한 문단이어야 한다. 제목/metadata 형태의 literal text는 허용하지만 빈 입력·앞뒤 빈 줄·여러 문단·목록·fence·directive delimiter 주입은 `NARU_ARGUMENT`(2)로 거부한다. 없는 ID·directive가 아닌 대상·범위 밖 index는 `NARU_TARGET`(2), 깨진 참조 등 유효하지 않은 결과는 `NARU_INVALID_DOCUMENT`(3)다. Revision·잠금 충돌과 dry-run·JSON 응답은 기존 편집 계약을 따른다.
+
+Core/batch의 타입은 `{ "type": "replaceDirectiveParagraph", "id": "REQ-001", "index": 0, "text": "The controller shall validate all inputs." }`이다. 정확히 같은 원문 입력은 혼합 개행도 보존하는 no-op이며 변경 입력은 문서의 첫 개행 방식에 맞춘다. 무관한 원문을 다시 직렬화하지 않는다. 기존 section 문단 편집의 대상/index 의미와 JSON envelope는 바뀌지 않는다. Operation union에 새 타입이 추가되므로 exhaustive switch를 사용하는 API 소비자는 새 분기를 고려해야 한다. 구버전 도구는 새 명령/operation을 지원하지 않으며 문서 마이그레이션은 필요 없다.
+
+조회부터 HTML 출력, 원본 보존과 실패 복구의 실행 예는 [acceptance test](../tests/acceptance/directive-edit.test.mjs)에 있다.
+`engineering.narudoc` 복사본에 사용할 배치 예제는 [directive-paragraph-edit.json](../examples/directive-paragraph-edit.json)이며 [편집 시나리오](authoring-scenario.md)에서 실행·검증한다.
+
 ## 단일 문서 배치 편집
 
-`batch FILE --operations PLAN --revision SHA256`은 한 파일에 기존 7종 편집을 목록 순서대로 적용한다. `PLAN`은 JSON 파일 경로이며 `--operations -`이면 stdin에서 계획을 읽는다. 대상 문서 `FILE`은 실제 파일이어야 한다. `--stdin`은 받지 않는다. 계획 파일에는 문서 파일과 같은 symlink/hardlink 제한을 적용한다.
+`batch FILE --operations PLAN --revision SHA256`은 한 파일에 지원하는 편집을 목록 순서대로 적용한다. `PLAN`은 JSON 파일 경로이며 `--operations -`이면 stdin에서 계획을 읽는다. 대상 문서 `FILE`은 실제 파일이어야 한다. `--stdin`은 받지 않는다. 계획 파일에는 문서 파일과 같은 symlink/hardlink 제한을 적용한다.
 
 입력은 아래처럼 `schemaVersion: 1`과 `operations` 두 필드만 갖는다. 계획의 UTF-8 크기 한도는 BOM 포함 10 MiB이며 선두 BOM은 허용한다. 작업 수는 1~100개다. 알 수 없는 버전·필드·타입·누락 필드와 잘못된 JSON은 `NARU_ARGUMENT` / 종료 코드 2다. 인코딩 오류는 3, 크기 초과는 5다.
 
@@ -142,6 +159,7 @@ pnpm exec narudoc id rename examples/engineering.narudoc --id REQ-001 --new-id R
 | `removeSection` | `id` |
 | `moveSection` | `id`, `after` |
 | `replaceParagraph` | `id`, `index`, `text` |
+| `replaceDirectiveParagraph` | `id`, `index`, `text` |
 | `setDirectiveAttribute` | `id`, `key`, `value` |
 | `renameId` | `id`, `newId` |
 
