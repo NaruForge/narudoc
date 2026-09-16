@@ -37,8 +37,8 @@ export function practiceCommands(readme) {
     const args = matches.map(match => match[0].startsWith('"') ? JSON.parse(match[0]) : match[0]);
     const width = args[0] === 'paragraph' ? 2 : 1, command = args.slice(0, width).join(' ');
     if (!['new', 'paragraph insert', 'paragraph replace', 'get', 'validate', 'render'].includes(command) || args[width] !== 'practice.narudoc') throw new Error(`Practice must address only its isolated document: ${line}`);
-    const output = args.indexOf('--output');
-    if (output >= 0 && args[output + 1] !== 'practice.html') throw new Error(`Practice output must stay isolated: ${line}`);
+    const outputs = args.flatMap((arg, index) => arg === '--output' ? [args[index + 1]] : arg.startsWith('--output=') ? [arg.slice('--output='.length)] : []);
+    if (outputs.some(output => output !== 'practice.html')) throw new Error(`Practice output must stay isolated: ${line}`);
     return args;
   });
 }

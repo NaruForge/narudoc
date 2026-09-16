@@ -67,6 +67,7 @@ test('broken local links, anchors, missing map coverage and README command drift
   const dir = await fixture(t), readmeFile = join(dir, 'README.md'), readme = await readFile(readmeFile, 'utf8');
   assert.throws(() => practiceCommands(readme.replace('new practice.narudoc', 'new ../outside.narudoc')), /isolated document/);
   assert.throws(() => practiceCommands(readme.replace('--output practice.html', '--output ../outside.html')), /stay isolated/);
+  assert.throws(() => practiceCommands(readme.replace('--output practice.html', '--output=../outside.html')), /stay isolated/);
   await writeFile(readmeFile, readme + '\n[missing](docs/missing.md)\n'); await assert.rejects(verifyGuide(dir), /broken link/);
   await writeFile(readmeFile, readme + '\n[missing](docs/cli.md#absent-heading)\n'); await assert.rejects(verifyGuide(dir), /missing anchor/);
   await writeFile(readmeFile, readme);
