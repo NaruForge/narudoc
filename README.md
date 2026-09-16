@@ -12,6 +12,8 @@ NaruDoc은 사람이 읽는 `.narudoc` 텍스트를 원본으로 사용한다. �
 
 현재 제공 범위는 CLI 조회, 제목·섹션·문단·directive 편집, validation, HTML 출력이다. GUI, PDF, MCP, 실시간 협업, registry 공개 배포는 포함하지 않는다. API와 문법은 실험 단계이며 전체 CommonMark 호환이나 Word 대체를 주장하지 않는다. 구현·검증 근거는 [MVP Issue #2](https://github.com/NaruForge/narudoc/issues/2)에서 확인한다.
 
+여러 의미 편집은 [단일 문서 배치](docs/cli.md#단일-문서-배치-편집)로 순차 검증한 뒤 한 번에 저장할 수 있다. 중간 편집이 실패하면 앞선 부분 결과도 저장하지 않는다.
+
 ## 개발 실행
 
 Node.js 22 이상. package.json의 pnpm 버전을 설치한 뒤 저장소 루트에서 실행한다.

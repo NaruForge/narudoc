@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
-import { NaruError, type Operation, type TextEdit } from '@naruforge/narudoc-model';
-import { assertValid, createDocument, getById, getSection, outline, parseDocument, planOperation, validateDocument } from '@naruforge/narudoc-core';
+import { BatchOperationError, NaruError, type Operation, type TextEdit } from '@naruforge/narudoc-model';
+import { assertValid, createDocument, getById, getSection, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
 import { renderHtml } from '@naruforge/narudoc-renderer-html';
 import { assertDocumentSize, createFile, load, readStdin, revision, save } from './io.js';
 
@@ -23,6 +23,8 @@ Write:
   narudoc section move FILE --id ID --after ID
   narudoc paragraph replace FILE --id SECTION --index 0 --text TEXT
   narudoc directive set FILE --id ID --key KEY --value VALUE
+  narudoc batch FILE --operations PLAN.json --revision SHA256
+  Batch plans may use --operations - for stdin; revision is required for batch.
   Existing-document writes accept --dry-run, --json, --revision SHA256.
   New/output files never overwrite existing files.
 
@@ -32,6 +34,7 @@ Offsets: UTF-16 code units, half-open [start,end). No GUI, telemetry or network.
 const commands: Record<string, string[]> = {
   inspect: ['stdin'], outline: ['stdin'], get: ['stdin', 'id'], validate: ['stdin'],
   render: ['stdin', 'to', 'output'], new: ['title', 'id'],
+  batch: ['operations', 'revision', 'dry-run'],
   'heading set-title': ['id', 'title', 'dry-run', 'revision'],
   'section insert': ['after', 'id', 'title', 'dry-run', 'revision'],
   'section remove': ['id', 'dry-run', 'revision'],
@@ -60,6 +63,7 @@ export async function main(args: string[]): Promise<number> {
       id: { type: 'string' }, title: { type: 'string' }, after: { type: 'string' },
       index: { type: 'string' }, text: { type: 'string' }, key: { type: 'string' },
       value: { type: 'string' }, revision: { type: 'string' }, to: { type: 'string' }, output: { type: 'string' },
+      operations: { type: 'string' },
     } as const;
     const { values, positionals, tokens } = parseArgs({ args, options, allowPositionals: true, strict: true, tokens: true });
     const seen = new Set<string>();
@@ -87,8 +91,12 @@ export async function main(args: string[]): Promise<number> {
       if (typeof value !== 'string') throw new NaruError('NARU_ARGUMENT', `--${key} is required.`);
       return value;
     };
-    const write = command === 'new' || command.includes(' ');
+    const write = command === 'new' || command === 'batch' || command.includes(' ');
     if (write && file === '-') throw new NaruError('NARU_ARGUMENT', 'In-place writes require a file, not stdin.');
+    if (command === 'batch') {
+      need('operations');
+      if (!/^[0-9a-f]{64}$/.test(need('revision'))) throw new NaruError('NARU_ARGUMENT', '--revision must be a lowercase SHA-256 for batch.');
+    }
     if (command === 'new') {
       const doc = createDocument(values.title, values.id);
       assertDocumentSize(doc.source);
@@ -102,6 +110,21 @@ export async function main(args: string[]): Promise<number> {
     const envelope = { schemaVersion: 1, file, revision: rev, offsetEncoding: 'utf-16' };
     if (values.revision && values.revision !== rev) throw new NaruError('NARU_STALE', 'Requested revision does not match the current file.');
     switch (command) {
+      case 'batch': {
+        const input = need('operations');
+        const text = input === '-' ? await readStdin() : (await load(input)).source;
+        let request: unknown;
+        try { request = JSON.parse(text.replace(/^\uFEFF/, '')); }
+        catch { throw new NaruError('NARU_ARGUMENT', 'Batch plan must be valid JSON.'); }
+        const plan = planBatch(doc, request);
+        assertDocumentSize(plan.next.source);
+        const changed = plan.next.source !== source;
+        if (!values['dry-run']) await save(loaded!, plan.next.source);
+        if (json) emit({ ...envelope, dryRun: !!values['dry-run'], changed, nextRevision: revision(plan.next.source), steps: plan.steps, diagnostics: validateDocument(plan.next) });
+        else if (values['dry-run']) process.stdout.write(plan.steps.map(step => `Operation ${step.operationIndex} (offsets in this step's input):\n${preview(step.edits)}`).join(''));
+        else process.stdout.write(changed ? `Updated ${file}\n` : 'No changes.\n');
+        return 0;
+      }
       case 'inspect': emit({ ...envelope, sourceLength: source.length, blocks: doc.blocks, diagnostics: validateDocument(doc) }); return 0;
       case 'outline':
         if (json) emit({ ...envelope, sections: outline(doc) });
@@ -156,7 +179,7 @@ export async function main(args: string[]): Promise<number> {
   } catch (error) {
     const original = error as Error & { code?: string };
     const classified = error instanceof NaruError ? error : new NaruError(original.code?.startsWith('ERR_PARSE_ARGS') ? 'NARU_ARGUMENT' : original.code ? 'NARU_IO' : 'NARU_INTERNAL', original.message);
-    if (json) process.stderr.write(JSON.stringify({ schemaVersion: 1, error: { code: classified.code, message: classified.message, diagnostics: classified.diagnostics } }) + '\n');
+    if (json) process.stderr.write(JSON.stringify({ schemaVersion: 1, error: { code: classified.code, message: classified.message, diagnostics: classified.diagnostics, ...(classified instanceof BatchOperationError ? { operationIndex: classified.operationIndex } : {}) } }) + '\n');
     else process.stderr.write(`${classified.code}: ${classified.message}\n${classified.diagnostics.map(d => `${d.range.start} ${d.code}: ${d.message}\n`).join('')}`);
     return exitCode(classified);
   }

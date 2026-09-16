@@ -23,6 +23,8 @@ node scripts/verify-authoring.mjs
 | `engineering.html` | CLI가 생성한 HTML |
 | `changes.diff` | Git이 생성한 실제 변경 diff |
 | `commands.json` | CLI 인자, 종료 코드, stdout, stderr |
+| `batch.narudoc`, `batch.html` | 같은 수정 요청을 배치 한 번으로 처리한 결과 |
+| `rejected-batch.narudoc`, `rejected-plan.json` | 마지막 작업 실패로 원본이 유지된 문서와 실패 계획 |
 
 ## 확인하는 사용자 흐름
 
@@ -32,13 +34,15 @@ node scripts/verify-authoring.mjs
 4. requirement 속성 변경과 동급 섹션 이동에도 같은 dry-run·저장·validation 과정을 적용한다. 이동한 절 전체의 원문과 최종 순서를 확인한다.
 5. 같은 속성 값을 다시 지정하는 no-op의 파일 불변을 확인한다.
 6. HTML의 수정된 값, 절 순서와 참조 대상·링크를 검사하고 Git diff를 저장한다.
+7. [engineering-edit.json](../examples/engineering-edit.json)을 원본 복사본에 `batch`로 적용한다. 전체 dry-run은 쓰지 않고, 실제 배치 저장의 원문과 HTML은 위 개별 편집 결과와 같아야 한다.
+8. 같은 계획 끝에 존재하지 않는 섹션 삭제를 추가한다. 네 번째 작업이 실패하면 앞선 세 작업도 저장되지 않고 원본 bytes가 유지되어야 한다.
 
 ## 사용하면서 드러나는 제약
 
 - 문단은 안정 ID 대신 섹션의 직접 자식 문단 index로 선택한다. 자연어 요청을 그대로 명령에 넣을 수 없고, 조회 결과에서 대상을 확인해야 한다.
-- 여러 변경을 한 번에 저장하는 transaction은 없다. 각 명령 뒤 revision을 새로 조회하며, 중간 실패 시 앞서 성공한 변경은 남는다. 이 시나리오도 개별 명령의 보존만 검증한다.
+- 개별 명령을 이어 실행하면 중간 실패 시 앞서 성공한 변경은 남는다. 한 문서의 수정 요청 전체를 저장하려면 `batch`를 사용한다. 초기 문서와 모든 중간 결과가 유효해야 하며, 여러 파일의 transaction은 지원하지 않는다.
 - `reviewed`는 generic directive에 저장하는 문자열이다. 요구사항 검토 승인이나 허용된 상태 전이를 엔진이 판단하지 않는다.
 - 섹션 이동은 같은 부모의 같은 level 사이에서만 지원한다. 이 시나리오의 두 절은 그 조건을 만족한다.
 - 충돌 시 자동 재시도하지 않는다. 여기서는 통제된 문단 변경 후에도 속성 수정 의도가 유효함을 확인하고 진행한다. 일반 자동화는 재조회 후 변경 의도를 다시 판단해야 한다.
 
-이 스크립트는 현재 [CLI 계약](cli.md)의 사용 예이자 회귀 검증이다. HTML 문자열을 검사하며 브라우저의 시각적 배치, 비협조적 외부 writer와의 완전한 동시성, 전원 장애 내구성을 검증하지 않는다. 개행·BOM 조합과 다른 오류 경로는 기존 acceptance test의 범위다. 실제 실행 결과와 후속 판단은 [Issue #7](https://github.com/NaruForge/narudoc/issues/7)과 연결 PR에 기록한다.
+이 스크립트는 현재 [CLI 계약](cli.md)의 사용 예이자 회귀 검증이다. HTML 문자열을 검사하며 브라우저의 시각적 배치, 비협조적 외부 writer와의 완전한 동시성, 전원 장애 내구성을 검증하지 않는다. 개행·BOM 조합과 다른 오류 경로는 acceptance test의 범위다. 최초 실행은 [Issue #7](https://github.com/NaruForge/narudoc/issues/7), 배치 확장과 검증은 [Issue #9](https://github.com/NaruForge/narudoc/issues/9)와 연결 PR에 기록한다.
