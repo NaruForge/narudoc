@@ -1,5 +1,6 @@
 import { ID_PATTERN, validKey, wellFormed, type Attribute, type Block, type Diagnostic, type DirectiveBodyBlock, type DocumentSnapshot, type Heading } from '@naruforge/narudoc-model';
 import { parseInline } from './inline.js';
+import { parseTableRow } from './table.js';
 export { parseInline } from './inline.js';
 
 interface Line { start: number; end: number; next: number; text: string }
@@ -39,7 +40,12 @@ export function parseDocument(source: string): DocumentSnapshot {
     return out;
   };
   // Shared scanners retain absolute positions in the original line table.
-  const scanBodyBlock = (i: number, target: DirectiveBodyBlock[] | Block[], startsBlock: (text: string) => boolean): number => {
+  const tableStart = (i: number) => {
+    const header = all[i] && parseTableRow(all[i]!.text, all[i]!.start);
+    const separator = all[i + 1] && parseTableRow(all[i + 1]!.text, all[i + 1]!.start);
+    return header && separator && separator.cells.every(c => /^-{3,}$/.test(source.slice(c.contentRange.start, c.contentRange.end))) ? { header, separator } : undefined;
+  };
+  const scanBodyBlock = (i: number, target: DirectiveBodyBlock[] | Block[], startsBlock: (text: string) => boolean, tables = false): number => {
     const line = all[i]!;
     const fence = fencePattern.exec(line.text);
     if (fence) {
@@ -63,11 +69,11 @@ export function parseDocument(source: string): DocumentSnapshot {
       target.push({ type: 'list', ordered, start: ordered ? Number.parseInt(firstItem[1]!, 10) : 1, items, range: { start: line.start, end: all[j - 1]!.end } }); return j;
     }
     let j = i + 1;
-    while (j < all.length && all[j]!.text.trim() && !startsBlock(all[j]!.text)) j++;
+    while (j < all.length && all[j]!.text.trim() && !startsBlock(all[j]!.text) && !(tables && tableStart(j))) j++;
     const end = all[j - 1]!.end;
     target.push({ type: 'paragraph', inline: parseInline(source.slice(line.start, end), 0, line.start), range: { start: line.start, end } }); return j;
   };
-  let i = 0;
+  let i = 0, hasHeading = false;
   if (all[0]?.text === '---') {
     let j = 1; while (j < all.length && all[j]!.text !== '---') j++;
     if (j === all.length) { error('NARU_METADATA', 'Unclosed metadata block.', all[0].start, source.length); i = j; }
@@ -96,7 +102,7 @@ export function parseDocument(source: string): DocumentSnapshot {
       }
       if (!title) error('NARU_HEADING', 'Heading title must not be empty.', line.start, line.end);
       if (id !== undefined && !ID_PATTERN.test(id)) error('NARU_ID', `Invalid ID: ${id}`, line.start, line.end);
-      blocks.push(node); i++; continue;
+      blocks.push(node); hasHeading = true; i++; continue;
     }
     if (line.text.startsWith(':::')) {
       const opening = directivePattern.exec(line.text);
@@ -122,7 +128,22 @@ export function parseDocument(source: string): DocumentSnapshot {
       if (id !== undefined) { node.id = id; if (!ID_PATTERN.test(id)) error('NARU_ID', `Invalid ID: ${id}`, line.start, line.end); }
       blocks.push(node); i = j + 1; continue;
     }
-    i = scanBodyBlock(i, blocks, special);
+    const table = hasHeading ? tableStart(i) : undefined;
+    if (table) {
+      const width = table.header.cells.length;
+      if (table.separator.cells.length !== width) error('NARU_TABLE_COLUMNS', 'Table separator width differs from header.', all[i + 1]!.start, all[i + 1]!.end);
+      const rows = [];
+      let j = i + 2;
+      while (j < all.length) {
+        const row = parseTableRow(all[j]!.text, all[j]!.start);
+        if (!row) break;
+        if (row.cells.length !== width) error('NARU_TABLE_COLUMNS', 'Table row width differs from header.', row.range.start, row.range.end);
+        rows.push(row); j++;
+      }
+      blocks.push({ type: 'table', header: table.header, separatorRange: table.separator.range, rows, range: { start: line.start, end: all[j - 1]!.end } });
+      i = j; continue;
+    }
+    i = scanBodyBlock(i, blocks, special, hasHeading);
   }
   return { source, blocks, diagnostics, eol };
 }

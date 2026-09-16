@@ -23,6 +23,7 @@ function renderBlock(block: Block): string {
     case 'metadata': return '';
     case 'heading': return `<h${block.level}${block.id === undefined ? '' : ` id="${escapeHtml(block.id)}"`}>${renderInline(block.inline)}</h${block.level}>`;
     case 'paragraph': return `<p>${renderInline(block.inline)}</p>`;
+    case 'table': return `<table><thead><tr>${block.header.cells.map(c => `<th>${renderInline(c.inline)}</th>`).join('')}</tr></thead><tbody>${block.rows.map(row => `<tr>${row.cells.map(c => `<td>${renderInline(c.inline)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     case 'code': return `<pre><code>${escapeHtml(block.value)}</code></pre>`;
     case 'list': {
       const tag = block.ordered ? 'ol' : 'ul';

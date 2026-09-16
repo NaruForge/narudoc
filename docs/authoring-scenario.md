@@ -61,3 +61,5 @@ node scripts/verify-authoring.mjs
 이 스크립트는 현재 [CLI 계약](cli.md)의 사용 예이자 회귀 검증이다. HTML 문자열을 검사하며 브라우저의 시각적 배치, 비협조적 외부 writer와의 완전한 동시성, 전원 장애 내구성을 검증하지 않는다. 개행·BOM 조합과 다른 오류 경로는 acceptance test의 범위다. 최초 실행은 [Issue #7](https://github.com/NaruForge/narudoc/issues/7), 배치 확장과 검증은 [Issue #9](https://github.com/NaruForge/narudoc/issues/9)와 연결 PR에 기록한다.
 
 ID 변경 검증과 범위는 [Issue #11](https://github.com/NaruForge/narudoc/issues/11)에 기록한다.
+
+파라미터 표 시나리오는 새 문서에 [table-input.json](../examples/table-input.json)을 삽입하고 table get으로 조회한 뒤 400 → 420 셀 변경을 dry-run/저장한다. 독립 기대 bytes와 비교하고 validate 및 parameters.html 출력을 확인한다. 모든 예제 값은 공개 가상 데이터다.

@@ -8,9 +8,9 @@ NaruDoc의 본체는 사람이 읽는 `.narudoc` 원본과 편집기에 독립�
 
 **Headless-first 설계와 사람이 쓰기 편한 WYSIWYG는 함께 추구한다.** CLI-first는 CLI-only가 아니다. 설계서·요구사항 같은 기술 문서를 사람이 시각적으로 작성하면서도, AI와 자동화는 편집기 실행 없이 같은 핵심 작업을 수행할 수 있어야 한다. 시각적 편집기는 장기 목표이며 아직 구현되지 않았다. 대상 사용자, 엔진과 client의 관계, 승인 정책과 성공 기준은 [제품 비전](docs/product.md)을 따른다.
 
-## MVP 2 첫 단계 · v0.0.2
+## MVP 2 첫 단계 · v0.0.3
 
-현재 제공 범위는 CLI 조회, 제목·섹션·문단·directive 편집, validation, HTML 출력이다. GUI, PDF, MCP, 실시간 협업, registry 공개 배포는 포함하지 않는다. API와 문법은 실험 단계이며 전체 CommonMark 호환이나 Word 대체를 주장하지 않는다. 구현·검증 근거는 [MVP Issue #2](https://github.com/NaruForge/narudoc/issues/2)에서 확인한다.
+현재 제공 범위는 CLI 조회, 제목·섹션·문단·directive·표 편집, validation, HTML 출력이다. GUI, PDF, MCP, 실시간 협업, registry 공개 배포는 포함하지 않는다. API와 문법은 실험 단계이며 전체 CommonMark 호환이나 Word 대체를 주장하지 않는다. 구현·검증 근거는 [MVP Issue #2](https://github.com/NaruForge/narudoc/issues/2)에서 확인한다.
 
 여러 의미 편집은 [단일 문서 배치](docs/cli.md#단일-문서-배치-편집)로 순차 검증한 뒤 한 번에 저장할 수 있다. 중간 편집이 실패하면 앞선 부분 결과도 저장하지 않는다.
 
@@ -51,3 +51,5 @@ pnpm exec narudoc render examples/engineering.narudoc --to html --output out.htm
 - [파일 문법·원본 보존 계약](docs/format.md)
 - [설계 결정 기록](docs/adr/) — 각 문서의 Status를 확인한다.
 - [Agent 안내](AGENTS.md) / [프로젝트 기록 규약](docs/project-records.md)
+
+[표 조회·생성·셀 편집](docs/cli.md#표-조회생성셀-편집)으로 파라미터 표를 만들고 숫자만 수정한다. 0.0.3에서는 제한 pipe table이 새 Block 타입으로 해석되므로 [이행 안내](docs/format.md#제한된-표--003)를 확인한다.

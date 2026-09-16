@@ -23,3 +23,14 @@ export function getSection(doc: DocumentSnapshot, id: string): Section {
 export function outline(doc: DocumentSnapshot) {
   return sections(doc).map(s => ({ id: s.heading.id ?? null, title: s.heading.title, level: s.heading.level, range: s.heading.range, sectionRange: { start: s.start, end: s.end }, parentStart: s.parentStart }));
 }
+export function getTable(doc: DocumentSnapshot, sectionId: string, index: number) {
+  const section = getSection(doc, sectionId);
+  const direct: Block[] = [];
+  for (const block of doc.blocks.slice(doc.blocks.indexOf(section.heading) + 1)) {
+    if (block.type === 'heading') break;
+    direct.push(block);
+  }
+  const tables = direct.filter(block => block.type === 'table');
+  if (!Number.isSafeInteger(index) || index < 0 || !tables[index]) throw new NaruError('NARU_TARGET', 'Table index is out of range.');
+  return tables[index]!;
+}

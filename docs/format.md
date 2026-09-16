@@ -1,4 +1,4 @@
-# NaruDoc 0.0.2 파일 문법
+# NaruDoc 0.0.3 파일 문법
 
 ## 범위
 
@@ -32,7 +32,7 @@ The controller shall validate its inputs.
 :::
 ```
 
-ID는 `[A-Za-z][A-Za-z0-9._:-]*`이고 문서 내 유일하다. 문단마다 ID를 강제하지 않는다. attribute key는 단순 식별자이며 중복과 prototype 관련 예약 이름을 거부한다. 값은 한 줄 문자열이고 실행·평가하지 않는다. 중첩 목록·표·수식·Setext heading·blockquote는 MVP 의미 객체가 아니다.
+ID는 `[A-Za-z][A-Za-z0-9._:-]*`이고 문서 내 유일하다. 문단마다 ID를 강제하지 않는다. attribute key는 단순 식별자이며 중복과 prototype 관련 예약 이름을 거부한다. 값은 한 줄 문자열이고 실행·평가하지 않는다. 중첩 목록·수식·Setext heading·blockquote는 MVP 의미 객체가 아니다.
 
 ## Directive 본문 · 0.0.2
 
@@ -79,3 +79,17 @@ ID 변경은 `renameId`로 정의와 같은 문서 내부 참조를 함께 수�
 배치 편집에서도 각 단계는 앞선 결과를 대상으로 같은 규칙을 적용하며 중간의 잘못된 문서를 허용하지 않는다. 한 파일의 모든 단계가 성공하면 최종 결과만 저장한다. CLI의 10 MiB 문서 크기 제한은 초기 파일과 최종 결과에 적용한다. 배치 입력/순차 범위/실패 의미는 [CLI 계약](cli.md)을 따른다.
 
 알 수 없는 directive 종류는 generic 객체로 보존·표시한다. 알려지지 않은 Markdown 표현은 의미를 추정하지 않고 literal text로 다룬다. 편집 후에는 재파싱과 동일 validation을 거치며, 새 문법이나 전체 Markdown 호환은 별도 범위다.
+
+## 제한된 표 · 0.0.3
+
+섹션 heading 이후 직접 본문에서 헤더 행과 바로 다음 separator 행으로 시작한다. 모든 행은 양끝 pipe가 필수이며 바깥 space/tab은 허용한다. Separator의 각 셀은 3개 이상의 `-`만 허용하고 colon 정렬은 지원하지 않는다. Body는 0행 이상이며 빈 줄이나 pipe 행이 아닌 블록에서 끝난다. 서로 다른 표는 빈 줄로 분리한다. 인식된 표의 separator/body 열 수 불일치는 `NARU_TABLE_COLUMNS` 오류다. 빈 셀은 허용한다. 앞뒤 pipe 없는 형태나 지원하지 않는 separator는 literal paragraph다. Code 및 directive 안과 첫 heading 전의 표 모양 텍스트는 기존 해석을 유지한다.
+
+구분자는 escape되지 않고 유효한 단일 backtick code 바깥에 있는 pipe다. 홀수 연속 backslash 뒤 pipe는 escape이며 짝수이면 구분자다. 표 셀에서만 `\|`를 화면의 `|`로 해석한다. Code 안의 pipe는 literal이고 미종결 backtick은 기존 inline 규칙대로 일반 문자다. 전체 GFM/CommonMark, 여러 줄 셀, 중첩 표를 지원하지 않는다.
+
+`Table`은 `header: TableRow`, `separatorRange`, `rows: TableRow[]`, `range`를 가진다. Row는 `cells`와 `range`, cell은 padding 포함 `range`, space/tab을 제외한 `contentRange`, 기존 `inline` 배열을 가진다. 모든 범위는 전체 문서 UTF-16 `[start,end)`이며 행 range는 EOL을 제외한다. 빈 셀 contentRange는 왼쪽 padding 뒤의 길이 0 범위다. Link urlRange도 같은 절대 위치를 사용한다.
+
+생성 DTO `TableInput`은 `headers: string[]`와 `rows: string[][]`만 받는다. 헤더는 최소 1열, 각 body는 동일 열 수다. 각 문자열은 앞뒤 공백 없는 한 줄 Unicode(빈 문자열 허용)이며 unescaped pipe와 제어문자를 거부한다. 현재 inline 표기를 입력하며 참조는 결과 전체에서 검증한다. `insertTable`은 `sectionId`의 마지막 직접 블록 뒤, 다음 heading 앞에 새 표와 필요한 개행만 추가한다. 새 표는 `| content |`와 `---`로 생성하며 기존 원문과 EOF 공백은 보존한다.
+
+`setTableCell`은 `sectionId`, 직접 `tableIndex`, `part: header|body`, `row`, `column`, `text`를 받는다. Index/좌표는 0-based, header row는 0이다. 셀 contentRange 안의 최소 patch만 적용하고 padding·separator·다른 셀은 유지한다. 같은 내용은 no-op이다. 기존 revision/lock/크기/batch 저장 규칙을 적용하며 원문 offset 입력은 제공하지 않는다. 참조 validation/rename은 실제 셀 링크를 한 번 순회하고 code의 가짜 링크는 무시한다. Renderer는 모델에서 안전한 table HTML을 만든다.
+
+**0.0.2 → 0.0.3:** Block union/inspect JSON에 table이 추가된다. 이전 버전에서 literal paragraph였던 위 문법은 이제 table이다. Section/directive 문단 index는 여전히 직접 paragraph만 세지만, 예전 표 모양 paragraph가 빠져 같은 파일의 숫자 index는 달라질 수 있다. 소비자는 table 분기를 추가하고 원문을 재파싱·조회한 뒤 편집한다. 자동 파일 변환은 없고 CLI envelope schemaVersion은 1을 유지한다. 근거는 [Proposed ADR 0007](adr/0007-bounded-pipe-tables.md)이다.

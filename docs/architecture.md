@@ -52,6 +52,8 @@ Core validation과 rename은 같은 순회에서 자식 문단·목록의 실제
 
 `replaceDirectiveParagraph`는 자식 중 paragraph만 센 index로 대상 원문 범위를 찾는다. 교체 입력은 임시 directive 본문으로 기존 parser에 전달하여 정확히 한 문단인지 검사한다. 따라서 최상위 heading/metadata 규칙을 본문에 잘못 적용하지 않는다. 정확히 같은 원문은 no-op이며, 그 외에는 개행을 맞춘 뒤 최소 patch를 적용하고 전체 결과를 재파싱·검증한다. CLI와 batch는 같은 operation을 호출한다. 기존 원본 보존·저장 경계의 확장이므로 별도 ADR을 추가하지 않는다.
 
-v0.0.2는 docs/format.md의 좁은 NaruDoc 문법만 구현하는 순수 TypeScript scanner를 사용한다. 앞선 micromark 후보는 범용 Markdown interoperability가 필요해질 때 비교한다. 직접 구현 범위를 CommonMark 전체로 확대하지 않는다. 도구/의존성 선택과 무관하게 snapshot/범위 계약 및 fidelity tests를 유지한다.
+v0.0.3은 docs/format.md의 좁은 NaruDoc 문법만 구현하는 순수 TypeScript scanner를 사용한다. 앞선 micromark 후보는 범용 Markdown interoperability가 필요해질 때 비교한다. 직접 구현 범위를 CommonMark 전체로 확대하지 않는다. 도구/의존성 선택과 무관하게 snapshot/범위 계약 및 fidelity tests를 유지한다.
 
 현재 방식을 유지할지 판단할 대안과 재검토 조건은 [제한 문법 parser ADR](adr/0003-bounded-parser.md)에 정리한다.
+
+표는 parser의 별도 bounded row scanner에서 escape/code를 구분하고 절대 셀 contentRange를 계산한다. Core는 DTO를 기존 parser로 확인하고 기존 section 삽입/최소 patch/순차 batch 경로를 사용한다. 참조 validation과 rename은 공통 순회에서 셀 inline을 처리하며 renderer는 재파싱하지 않는다. 모델/호환성 결정은 [Proposed ADR 0007](adr/0007-bounded-pipe-tables.md), 상세 문법은 [파일 계약](format.md)을 따른다.
