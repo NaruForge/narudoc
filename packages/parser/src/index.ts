@@ -1,4 +1,4 @@
-import { ID_PATTERN, validKey, wellFormed, type Attribute, type Block, type Diagnostic, type DocumentSnapshot, type Heading } from '@naruforge/narudoc-model';
+import { ID_PATTERN, validKey, wellFormed, type Attribute, type Block, type Diagnostic, type DirectiveBodyBlock, type DocumentSnapshot, type Heading } from '@naruforge/narudoc-model';
 import { parseInline } from './inline.js';
 export { parseInline } from './inline.js';
 
@@ -38,6 +38,35 @@ export function parseDocument(source: string): DocumentSnapshot {
     }
     return out;
   };
+  // Shared scanners retain absolute positions in the original line table.
+  const scanBodyBlock = (i: number, target: DirectiveBodyBlock[] | Block[], startsBlock: (text: string) => boolean): number => {
+    const line = all[i]!;
+    const fence = fencePattern.exec(line.text);
+    if (fence) {
+      const marker = fence[1]!;
+      let j = i + 1;
+      const close = new RegExp(`^${marker[0]}{${marker.length},}[ \\t]*$`);
+      while (j < all.length && !close.test(all[j]!.text)) j++;
+      if (j === all.length) error('NARU_FENCE', 'Unclosed code fence.', line.start, source.length);
+      target.push({ type: 'code', language: fence[2]!.trim(), value: source.slice(line.next, all[j]?.start ?? source.length), range: { start: line.start, end: all[j]?.end ?? source.length } });
+      return j + 1;
+    }
+    const firstItem = listPattern.exec(line.text);
+    if (firstItem) {
+      const ordered = /^\d/.test(firstItem[1]!); const items = [];
+      let j = i;
+      while (j < all.length) {
+        const m = listPattern.exec(all[j]!.text);
+        if (!m || /^\d/.test(m[1]!) !== ordered) break;
+        items.push(parseInline(m[2]!, 0, all[j]!.end - m[2]!.length)); j++;
+      }
+      target.push({ type: 'list', ordered, start: ordered ? Number.parseInt(firstItem[1]!, 10) : 1, items, range: { start: line.start, end: all[j - 1]!.end } }); return j;
+    }
+    let j = i + 1;
+    while (j < all.length && all[j]!.text.trim() && !startsBlock(all[j]!.text)) j++;
+    const end = all[j - 1]!.end;
+    target.push({ type: 'paragraph', inline: parseInline(source.slice(line.start, end), 0, line.start), range: { start: line.start, end } }); return j;
+  };
   let i = 0;
   if (all[0]?.text === '---') {
     let j = 1; while (j < all.length && all[j]!.text !== '---') j++;
@@ -69,48 +98,31 @@ export function parseDocument(source: string): DocumentSnapshot {
       if (id !== undefined && !ID_PATTERN.test(id)) error('NARU_ID', `Invalid ID: ${id}`, line.start, line.end);
       blocks.push(node); i++; continue;
     }
-    const fence = fencePattern.exec(line.text);
-    if (fence) {
-      const marker = fence[1]!;
-      let j = i + 1;
-      const close = new RegExp(`^${marker[0]}{${marker.length},}[ \\t]*$`);
-      while (j < all.length && !close.test(all[j]!.text)) j++;
-      if (j === all.length) error('NARU_FENCE', 'Unclosed code fence.', line.start, source.length);
-      blocks.push({ type: 'code', language: fence[2]!.trim(), value: source.slice(line.next, all[j]?.start ?? source.length), range: { start: line.start, end: all[j]?.end ?? source.length } });
-      i = j + 1; continue;
-    }
     if (line.text.startsWith(':::')) {
       const opening = directivePattern.exec(line.text);
       if (!opening) { error('NARU_DIRECTIVE', 'Malformed or unexpected directive delimiter.', line.start, line.end); i++; continue; }
-      let j = i + 1;
-      while (j < all.length && !/^:::[ \t]*$/.test(all[j]!.text)) {
-        if (all[j]!.text.startsWith(':::')) error('NARU_DIRECTIVE_NESTED', 'Nested directives are not supported.', all[j]!.start, all[j]!.end);
-        j++;
-      }
-      if (j === all.length) error('NARU_DIRECTIVE', 'Unclosed directive.', line.start, source.length);
-      let split = i + 1; while (split < j && all[split]!.text.trim()) split++;
+      let split = i + 1;
+      while (split < all.length && all[split]!.text.trim() && !all[split]!.text.startsWith(':::')) split++;
       const attrs = attributes(all.slice(i + 1, split));
       const id = attrs.find(a => a.key === 'id')?.value;
-      const bodyStart = all[split]?.next ?? source.length;
-      const node: Block = { type: 'directive', name: opening[1]!, attributes: attrs, body: parseInline(source.slice(bodyStart, all[j]?.start ?? source.length), 0, bodyStart), headerEnd: all[split]?.start ?? source.length, range: { start: line.start, end: all[j]?.end ?? source.length } };
+      const children: DirectiveBodyBlock[] = [];
+      let j = split;
+      const bodySpecial = (text: string) => fencePattern.test(text) || listPattern.test(text) || text.startsWith(':::');
+      while (j < all.length && !/^:::[ \t]*$/.test(all[j]!.text)) {
+        const childLine = all[j]!;
+        if (!childLine.text.trim()) { j++; continue; }
+        if (childLine.text.startsWith(':::')) {
+          error('NARU_DIRECTIVE_NESTED', 'Nested directives are not supported.', childLine.start, childLine.end);
+          j++; continue;
+        }
+        j = scanBodyBlock(j, children, bodySpecial);
+      }
+      if (j >= all.length) error('NARU_DIRECTIVE', 'Unclosed directive.', line.start, source.length);
+      const node: Block = { type: 'directive', name: opening[1]!, attributes: attrs, children, headerEnd: all[split]?.start ?? source.length, range: { start: line.start, end: all[j]?.end ?? source.length } };
       if (id !== undefined) { node.id = id; if (!ID_PATTERN.test(id)) error('NARU_ID', `Invalid ID: ${id}`, line.start, line.end); }
       blocks.push(node); i = j + 1; continue;
     }
-    const firstItem = listPattern.exec(line.text);
-    if (firstItem) {
-      const ordered = /^\d/.test(firstItem[1]!); const items = [];
-      let j = i;
-      while (j < all.length) {
-        const m = listPattern.exec(all[j]!.text);
-        if (!m || /^\d/.test(m[1]!) !== ordered) break;
-        items.push(parseInline(m[2]!, 0, all[j]!.end - m[2]!.length)); j++;
-      }
-      blocks.push({ type: 'list', ordered, start: ordered ? Number.parseInt(firstItem[1]!, 10) : 1, items, range: { start: line.start, end: all[j - 1]!.end } }); i = j; continue;
-    }
-    let j = i + 1;
-    while (j < all.length && all[j]!.text.trim() && !special(all[j]!.text)) j++;
-    const end = all[j - 1]!.end;
-    blocks.push({ type: 'paragraph', inline: parseInline(source.slice(line.start, end), 0, line.start), range: { start: line.start, end } }); i = j;
+    i = scanBodyBlock(i, blocks, special);
   }
   return { source, blocks, diagnostics, eol };
 }

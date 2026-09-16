@@ -1,0 +1,19 @@
+# 한글 😀 Control design {#control}
+
+:::requirement
+id: REQ-001
+status: draft
+
+The controller shall validate its inputs.
+
+- Check the input range.
+- Follow [control design](#control).
+
+```text
+[not a reference](#missing)
+:::
+:::not-a-nested-directive
+```
+
+Verification uses the [control design](#control).
+:::

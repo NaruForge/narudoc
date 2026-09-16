@@ -13,8 +13,9 @@ export interface Heading extends Base {
 export interface Paragraph extends Base { type: 'paragraph'; inline: Inline[] }
 export interface List extends Base { type: 'list'; ordered: boolean; start: number; items: Inline[][] }
 export interface Code extends Base { type: 'code'; language: string; value: string }
+export type DirectiveBodyBlock = Paragraph | List | Code;
 export interface Directive extends Base {
-  type: 'directive'; name: string; id?: string; attributes: Attribute[]; body: Inline[]; headerEnd: number;
+  type: 'directive'; name: string; id?: string; attributes: Attribute[]; children: DirectiveBodyBlock[]; headerEnd: number;
 }
 export interface Metadata extends Base { type: 'metadata'; attributes: Attribute[] }
 export type Block = Heading | Paragraph | List | Code | Directive | Metadata;

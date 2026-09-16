@@ -1,4 +1,4 @@
-# NaruDoc 0.0.1 파일 문법
+# NaruDoc 0.0.2 파일 문법
 
 ## 범위
 
@@ -34,9 +34,19 @@ The controller shall validate its inputs.
 
 ID는 `[A-Za-z][A-Za-z0-9._:-]*`이고 문서 내 유일하다. 문단마다 ID를 강제하지 않는다. attribute key는 단순 식별자이며 중복과 prototype 관련 예약 이름을 거부한다. 값은 한 줄 문자열이고 실행·평가하지 않는다. 중첩 목록·표·수식·Setext heading·blockquote는 MVP 의미 객체가 아니다.
 
+## Directive 본문 · 0.0.2
+
+속성 헤더와 본문은 빈 줄로 구분한다. 본문은 여러 문단, 기존 flat single-line ordered/unordered list, backtick 또는 tilde fenced code를 지원한다. 본문이 없거나 공백뿐이면 자식 배열은 비어 있으며 공백은 원본에 남는다. 알 수 없는 directive 이름에도 같은 규칙을 적용한다. `requirement` 전용 스키마는 없다.
+
+코드 fence 밖의 `:::`만 directive를 닫는다. 코드 안의 `:::`와 `:::name`, 링크처럼 보이는 문자열은 코드다. fence 밖의 중첩 directive와 닫히지 않은 fence/directive는 오류다. 본문의 heading·metadata처럼 보이는 표현은 literal paragraph text이며 outline·ID 정의에 포함하지 않는다. 중첩 목록과 재귀 directive는 지원하지 않는다.
+
+모델은 `DirectiveBodyBlock = Paragraph | List | Code`와 `Directive.children`을 사용한다. `DocumentSnapshot.blocks`는 최상위 블록만 담고 자식을 중복 등록하지 않는다. 자식 범위와 링크 `urlRange`는 전체 문서 원문의 UTF-16 위치다. 예시는 [directive-blocks.narudoc](../examples/directive-blocks.narudoc)을 참고한다.
+
+**0.0.1 → 0.0.2는 breaking change다.** `body: Inline[]`를 제거하고 `children: DirectiveBodyBlock[]`로 교체한다. 저장한 모델은 기존 authoritative source를 새 parser로 재파싱하여 이행한다. `.narudoc` 파일을 자동 변환하거나 다시 저장하지 않는다. 기존 본문의 목록/fence는 이제 블록으로 해석되므로 원본 bytes 보존이 해석의 하위 호환을 뜻하지 않는다.
+
 ## 편집 의미
 
-Section은 heading 시작부터 다음 동급/상위 heading 직전 또는 EOF까지이며 내부 하위 섹션과 뒤쪽 공백을 포함한다. 이동은 같은 부모의 동급 섹션 사이에서만 허용한다. 이동 대상 내부로 이동할 수 없다. 문단 교체의 index는 지정 section의 직접 자식 문단을 대상으로 한 0-based index다.
+Section은 heading 시작부터 다음 동급/상위 heading 직전 또는 EOF까지이며 내부 하위 섹션과 뒤쪽 공백을 포함한다. 이동은 같은 부모의 동급 섹션 사이에서만 허용한다. 이동 대상 내부로 이동할 수 없다. 문단 교체의 index는 지정 section의 직접 자식 문단을 대상으로 한 0-based index다. Directive 내부 문단은 세지 않으며 본문 전용 편집 operation은 없다. 속성 편집과 섹션 이동은 본문을 재직렬화하지 않는다.
 
 ID 변경은 `renameId`로 정의와 같은 문서 내부 참조를 함께 수정한다. 파서가 인식한 링크만 대상으로 하며, percent-encoded fragment는 decode한 ID로 비교하고 변경된 URL은 `#NEW`로 기록한다. 같은 ID는 no-op이다. 코드·일반 텍스트·외부 링크·다른 문서의 참조는 바꾸지 않는다. 일반 속성 편집으로 ID를 바꾸는 것은 계속 거부한다. 상세 명령·실패 계약은 [CLI](cli.md)를 따른다.
 
