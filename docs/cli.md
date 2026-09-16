@@ -311,4 +311,4 @@ CLI JSON plan/DTO와 웹 요청은 같은 Node reader로 duplicate key(escaped k
 
 ## 대상 조회와 단계 위치
 
-`get <file> --id <id> --json`의 `data.targets`는 heading/section/directive paragraph의 의미 target을 반환한다. `table get`의 `data.target`은 sectionId/tableIndex를 반환한다. `scope: current-step-snapshot`은 이 index가 영속 ID가 아님을 명시한다. A/B 앞에 X를 삽입한 batch의 다음 단계에서는 index 1이 A, 2가 B다. 외부 파일 변경은 별도의 `--revision`으로 검사한다. `text set`의 inline path도 해당 snapshot에만 속하는 advanced API이며 일반 사용자는 paragraph/title 명령을 우선한다.
+`get <file> --id <id> --json`의 최상위 `targets`는 heading/section/directive paragraph의 의미 target을 반환한다. `table get`의 최상위 `target`은 sectionId/tableIndex를 반환한다. `scope: current-step-snapshot`은 이 index가 영속 ID가 아님을 명시한다. A/B 앞에 X를 삽입한 batch의 다음 단계에서는 index 1이 A, 2가 B다. 외부 파일 변경은 별도의 `--revision`으로 검사한다. `text set`의 inline path도 해당 snapshot에만 속하는 advanced API이며 일반 사용자는 paragraph/title 명령을 우선한다.
