@@ -6,3 +6,6 @@ out.html
 *.narudoc.lock
 *.narudoc-tmp-*
 .narudoc-scenarios/
+.playwright-cli/
+test-results/
+playwright-report/

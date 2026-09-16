@@ -15,8 +15,11 @@
 - core → model, parser.
 - renderer-html → model.
 - apps/cli → core, renderer-html 및 공통 타입.
+- editor-adapter → model, core, renderer-html, ProseMirror. DOM은 이 client adapter에만 있다.
 
 위 엔진 라이브러리는 Node I/O·DOM·editor·네트워크에 의존하지 않는다. renderer는 원본을 재파싱하거나 Core 편집 로직을 복제하지 않는다. CLI는 Core operation을 호출하며 문서를 독자적으로 편집하지 않는다.
+
+제한된 [시각 편집 spike](visual-editor-spike.md)는 source snapshot을 소유하고 PM transaction을 Core `setInlineText`로 연결한다. Parser text range/semantic target 기반 sidecar로 원문을 찾고 editor JSON/DOM을 저장하지 않는다. 일반 텍스트 범위 밖 구조는 보호하며 draft·composition·유효 snapshot을 분리한다. 선택 근거는 [Proposed ADR 0008](adr/0008-source-owned-editor-adapter.md)이다.
 
 ## 원본 소유권
 

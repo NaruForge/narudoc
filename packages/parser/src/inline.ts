@@ -5,12 +5,14 @@ export function parseInline(source: string, depth = 0, sourceOffset?: number, ta
   if (depth > 16) return [{ type: 'text', value: source }];
   const out: Inline[] = [];
   let text = '';
+  let textStart = 0, textEnd = 0;
+  const append = (value: string, start: number, end: number) => { if (!text) textStart = start; text += value; textEnd = end; };
   let labelEnd = -1, linkEnd = -1;
-  const flush = () => { if (text) { out.push({ type: 'text', value: text }); text = ''; } };
+  const flush = () => { if (text) { out.push({ type: 'text', value: text, ...(sourceOffset === undefined ? {} : { range: { start: sourceOffset + textStart, end: sourceOffset + textEnd } }) }); text = ''; } };
   for (let i = 0; i < source.length;) {
     const ch = source[i]!;
     if (ch === '\\' && (/[\\`*\[\]()]/.test(source[i + 1] ?? '') || (table && source[i + 1] === '|'))) {
-      text += source[i + 1]; i += 2; continue;
+      append(source[i + 1]!, i, i + 2); i += 2; continue;
     }
     if (ch === '`') {
       const end = source.indexOf('`', i + 1);
@@ -45,7 +47,7 @@ export function parseInline(source: string, depth = 0, sourceOffset?: number, ta
         i = linkEnd + 1; continue;
       }
     }
-    text += ch; i++;
+    append(ch, i, i + 1); i++;
   }
   flush(); return out;
 }

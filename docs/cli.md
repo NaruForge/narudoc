@@ -20,6 +20,7 @@
 | `render FILE --to html` | `--stdin`, `--output FILE` | 유효한 문서를 HTML로 출력 |
 | `new FILE` | `--title TITLE`, `--id ID` | 새 문서 생성; 생략 시 제목 `Untitled`, ID `document` |
 | `heading set-title FILE --id ID --title TITLE` | 편집 공통 옵션 | 제목 변경 |
+| `text set FILE --kind KIND --id ID --index N --path N.N --expected TEXT --text TEXT` | 편집 공통 옵션 | 일반 inline text run 의미 편집 |
 | `section insert FILE --after ID --id NEW_ID --title TITLE` | 편집 공통 옵션 | 지정 섹션 뒤에 동급 섹션 삽입 |
 | `section insert-child FILE --parent ID --id NEW_ID --title TITLE` | 편집 공통 옵션 | 부모의 마지막 자식 섹션 생성; level은 부모 + 1 |
 | `section remove FILE --id ID` | 편집 공통 옵션 | 섹션과 하위 내용 삭제 |
@@ -212,6 +213,7 @@ Core/batch의 타입은 `{ "type": "replaceDirectiveParagraph", "id": "REQ-001",
 | type | type 외 필수 필드 |
 | --- | --- |
 | `setHeadingTitle` | `id`, `title` |
+| `setInlineText` | `kind`, `id`, `index`, `path`, `expected`, `text` |
 | `insertTable` | `sectionId`, `headers`, `rows` |
 | `setTableCell` | `sectionId`, `tableIndex`, `part`, `row`, `column`, `text` |
 | `insertSection` | `after`, `id`, `title` |
@@ -279,3 +281,9 @@ pnpm exec narudoc table set-cell sample.narudoc --section parameters --index 0 -
 Core는 `getTable(doc, sectionId, index)`, `insertTable { sectionId, headers, rows }`, `setTableCell { sectionId, tableIndex, part, row, column, text }`을 제공한다. Batch에는 각 operation의 `type`을 포함한다. Header 편집은 `part: "header", row: 0`, body는 `part: "body"`와 0-based row/column이다. 직접 표 index만 세고 다음 heading부터 제외한다. 의미 제약/원본 보존/0.0.3 해석 변경은 [표 계약](format.md#제한된-표--003)을 따른다.
 
 개별 쓰기는 dry-run/revision을 지원한다. 잘못된 DTO/셀 문법/part/header row는 NARU_ARGUMENT(2), 없는 section/table/cell은 NARU_TARGET(2), 결과 참조 오류는 NARU_INVALID_DOCUMENT(3)다. Revision/lock/크기 실패는 기존 코드이며 부분 저장하지 않는다. Body row가 데이터 범위 밖이면 대상 오류다. `--index`, `--row`, `--column`은 음수·소수·안전한 정수 밖 값을 인자 오류로 거부한다. 미지원 행/열 CRUD와 표 UI는 제공하지 않는다.
+
+## 일반 inline text 편집
+
+`text set` / Core·batch `setInlineText`는 화면 adapter와 같은 headless 연산이다. `kind`는 `heading`(index 0), `paragraph`(section ID/직접 문단 index), `directiveParagraph`(directive ID/본문 문단 index)다. `path`는 inspect의 inline 배열에서 text leaf까지의 0-based index를 점으로 연결한다(예: strong 안 text는 `1.0`). `expected`는 조회한 leaf의 전체 표시 text이고 `text`는 그 run의 새 text다. Revision은 기존 편집 공통 옵션이다. 잘못된 target/path는 대상/인자 오류, expected 불일치는 NARU_STALE이다.
+
+Parser가 기록한 text range의 원문과 표시 text가 동일한 단일 줄 run만 편집한다. Escape/code/link 내부 및 mark 경계를 넘는 편집은 거부한다. 결과는 동일 inline 구조와 기존 validation을 통과해야 한다. 제어문자/잘못된 Unicode/구조 변경/빈 블록 결과는 저장하지 않는다. 기존 source의 최소 patch이며 BOM/EOL/무관한 mark/link 표기는 보존한다. 이 연산은 임의 source offset/raw patch 입력이 아니다. Text range 필드는 additive이고 현재 source를 다시 parse하여 사용한다.

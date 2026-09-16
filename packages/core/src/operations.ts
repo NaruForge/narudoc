@@ -2,6 +2,7 @@ import { ID_PATTERN, NaruError, validKey, wellFormed, type DocumentSnapshot, typ
 import { parseDocument } from '@naruforge/narudoc-parser';
 import { getById, getSection, getTable } from './query.js';
 import { readTableInput, tableCellText, tableSource } from './table-input.js';
+import { inlineTextEdits, assertInlineResult } from './inline-edit.js';
 import { assertValid } from './validation.js';
 import { applyTextEdits, minimalEdit } from './patch.js';
 import { internalReferences } from './references.js';
@@ -41,6 +42,7 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
   const source = doc.source;
   let edits: TextEdit[];
   switch (operation.type) {
+    case 'setInlineText': edits = inlineTextEdits(doc, operation); break;
     case 'insertTable': {
       const input = readTableInput({ headers: operation.headers, rows: operation.rows });
       const section = getSection(doc, operation.sectionId);
@@ -203,6 +205,7 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
   }
   const next = parseDocument(applyTextEdits(source, edits));
   assertValid(next);
+  if (operation.type === 'setInlineText') assertInlineResult(doc, next, operation);
   if (operation.type === 'setTableCell') {
     const before = getTable(doc, operation.sectionId, operation.tableIndex), after = getTable(next, operation.sectionId, operation.tableIndex);
     const rows = [before.header, ...before.rows], nextRows = [after.header, ...after.rows];
