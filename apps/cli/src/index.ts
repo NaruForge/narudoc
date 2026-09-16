@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { NaruError, type Operation, type TextEdit } from '@naruforge/narudoc-model';
 import { assertValid, createDocument, getById, getSection, outline, parseDocument, planOperation, validateDocument } from '@naruforge/narudoc-core';
 import { renderHtml } from '@naruforge/narudoc-renderer-html';
-import { createFile, load, readStdin, revision, save } from './io.js';
+import { assertDocumentSize, createFile, load, readStdin, revision, save } from './io.js';
 
 const HELP = `NaruDoc — headless structured documents
 
@@ -91,6 +91,7 @@ export async function main(args: string[]): Promise<number> {
     if (write && file === '-') throw new NaruError('NARU_ARGUMENT', 'In-place writes require a file, not stdin.');
     if (command === 'new') {
       const doc = createDocument(values.title, values.id);
+      assertDocumentSize(doc.source);
       await createFile(file, doc.source);
       if (json) emit({ schemaVersion: 1, file, revision: revision(doc.source) }); else process.stdout.write(`Created ${file}\n`);
       return 0;
@@ -146,6 +147,7 @@ export async function main(args: string[]): Promise<number> {
       default: throw new NaruError('NARU_ARGUMENT', 'Unknown operation.');
     }
     const plan = planOperation(doc, operation);
+    assertDocumentSize(plan.next.source);
     if (!values['dry-run']) await save(loaded!, plan.next.source);
     if (json) emit({ ...envelope, dryRun: !!values['dry-run'], changed: plan.edits.length > 0, nextRevision: revision(plan.next.source), edits: plan.edits, diagnostics: validateDocument(plan.next) });
     else if (values['dry-run']) process.stdout.write(preview(plan.edits));

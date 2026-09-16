@@ -89,6 +89,43 @@ test('CRLF and BOM survive real file writes', async t => {
   ok(cli(['paragraph', 'replace', file, '--id', 'a', '--index', '0', '--text', 'The voltage is 420 V.']));
   assert.deepEqual(await readFile(file), Buffer.from(original.replace('400', '420')));
 });
+
+function documentOfByteLength(bytes) {
+  const prefix = '\ufeff# A {#a}\r\n\r\n```\r\n', suffix = '\r\n```\r\n';
+  const remaining = bytes - Buffer.byteLength(prefix + suffix);
+  return prefix + '가'.repeat(Math.floor(remaining / 3)) + 'x'.repeat(remaining % 3) + suffix;
+}
+
+test('over-limit edits and dry-runs reject UTF-8 growth without touching the original', async t => {
+  const original = documentOfByteLength(10 * 1024 * 1024);
+  const { file, dir } = await setup(t, original), before = await stat(file);
+  for (const flags of [[], ['--dry-run']]) {
+    const result = cli(['heading', 'set-title', file, '--id', 'a', '--title', '한글', '--json', ...flags]);
+    assert.equal(result.status, 5, result.stderr);
+    assert.equal(JSON.parse(result.stderr).error.code, 'NARU_LIMIT');
+    assert.equal(result.stdout, '');
+    assert.deepEqual(await readFile(file), Buffer.from(original));
+    assert.equal((await stat(file)).mtimeMs, before.mtimeMs);
+    assert.equal((await readdir(dir)).length, 1);
+  }
+  assert.equal((await load(file)).source, original, 'the original remains readable');
+});
+
+test('an edit ending exactly at the UTF-8 byte limit remains readable', async t => {
+  const original = documentOfByteLength(10 * 1024 * 1024 - 2);
+  const { file } = await setup(t, original);
+  ok(cli(['heading', 'set-title', file, '--id', 'a', '--title', '가']));
+  const saved = await load(file);
+  assert.equal(saved.bytes.length, 10 * 1024 * 1024);
+  assert.equal(saved.source, original.replace('# A', '# 가'));
+});
+
+test('the file adapter also rejects oversized document writes before creating lock or temp files', async t => {
+  const { file, dir } = await setup(t), snapshot = await load(file);
+  await assert.rejects(save(snapshot, documentOfByteLength(10 * 1024 * 1024 + 1)), { code: 'NARU_LIMIT' });
+  assert.equal(await readFile(file, 'utf8'), source);
+  assert.equal((await readdir(dir)).length, 1);
+});
 test('stale revision fails on stderr JSON and leaves file unchanged', async t => {
   const { file } = await setup(t);
   const result = cli(['heading', 'set-title', file, '--id', 'a', '--title', 'B', '--revision', 'stale', '--json']);

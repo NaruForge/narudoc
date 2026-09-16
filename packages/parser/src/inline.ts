@@ -5,6 +5,7 @@ export function parseInline(source: string, depth = 0): Inline[] {
   if (depth > 16) return [{ type: 'text', value: source }];
   const out: Inline[] = [];
   let text = '';
+  let labelEnd = -1, linkEnd = -1;
   const flush = () => { if (text) { out.push({ type: 'text', value: text }); text = ''; } };
   for (let i = 0; i < source.length;) {
     const ch = source[i]!;
@@ -24,10 +25,21 @@ export function parseInline(source: string, depth = 0): Inline[] {
       }
     }
     if (ch === '[') {
-      const match = /^\[([^\]\r\n]+)\]\(([^\s()]+)\)/.exec(source.slice(i));
-      if (match) {
-        flush(); out.push({ type: 'link', url: match[2]!, children: [{ type: 'text', value: match[1]! }] });
-        i += match[0].length; continue;
+      // Opening brackets before the same label terminator share one scan,
+      // including when the URL is malformed or no terminator exists.
+      if (labelEnd <= i) {
+        labelEnd = i + 1;
+        while (labelEnd < source.length && !/[\]\r\n]/.test(source[labelEnd]!)) labelEnd++;
+        linkEnd = -1;
+        if (source[labelEnd] === ']' && source[labelEnd + 1] === '(') {
+          let end = labelEnd + 2;
+          while (end < source.length && !/[\s()]/.test(source[end]!)) end++;
+          if (end > labelEnd + 2 && source[end] === ')') linkEnd = end;
+        }
+      }
+      if (labelEnd > i + 1 && linkEnd !== -1) {
+        flush(); out.push({ type: 'link', url: source.slice(labelEnd + 2, linkEnd), children: [{ type: 'text', value: source.slice(i + 1, labelEnd) }] });
+        i = linkEnd + 1; continue;
       }
     }
     text += ch; i++;

@@ -5,6 +5,9 @@ import { NaruError } from '@naruforge/narudoc-model';
 
 const MAX_BYTES = 10 * 1024 * 1024;
 export const revision = (data: Uint8Array | string): string => createHash('sha256').update(data).digest('hex');
+export function assertDocumentSize(source: string): void {
+  if (Buffer.byteLength(source, 'utf8') > MAX_BYTES) throw new NaruError('NARU_LIMIT', 'Document exceeds the 10 MiB MVP limit.');
+}
 export function decode(data: Uint8Array): string {
   if (data.byteLength > MAX_BYTES) throw new NaruError('NARU_LIMIT', 'Document exceeds the 10 MiB MVP limit.');
   try { return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(data); }
@@ -57,6 +60,7 @@ export async function createFile(file: string, source: string): Promise<void> {
   finally { await unlink(temp); }
 }
 export async function save(snapshot: FileSnapshot, source: string): Promise<void> {
+  assertDocumentSize(source);
   if (source === snapshot.source) {
     const current = await load(snapshot.path);
     if (current.revision !== snapshot.revision || current.ino !== snapshot.ino || current.dev !== snapshot.dev) throw new NaruError('NARU_STALE', 'File changed after it was inspected.');
