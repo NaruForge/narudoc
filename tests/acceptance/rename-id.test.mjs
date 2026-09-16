@@ -27,7 +27,7 @@ function fixture(id = 'OLD') {
   return `---
 note: [metadata](#OLD)
 ---
-# 한글 😀 [heading](#${id}) ##  {#${id}}  
+# 한글 😀 [heading](#${id}) ##  {#${id}}${'  '}
 
 OLD and #OLD stay. [OLD](#${id}) and [encoded](#${id === 'OLD' ? '%4fLD' : id}).
 **[strong](#${id})** and *[emphasis](#${id})*.
