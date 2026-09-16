@@ -36,6 +36,7 @@ export type Operation =
   | { type: 'renameId'; id: string; newId: string }
   | { type: 'setHeadingTitle'; id: string; title: string }
   | { type: 'insertSection'; after: string; id: string; title: string }
+  | { type: 'insertChildSection'; parent: string; id: string; title: string }
   | { type: 'removeSection'; id: string }
   | { type: 'moveSection'; id: string; after: string }
   | { type: 'replaceParagraph'; id: string; index: number; text: string }

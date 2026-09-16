@@ -14,6 +14,8 @@ NaruDoc의 본체는 사람이 읽는 `.narudoc` 원본과 편집기에 독립�
 
 여러 의미 편집은 [단일 문서 배치](docs/cli.md#단일-문서-배치-편집)로 순차 검증한 뒤 한 번에 저장할 수 있다. 중간 편집이 실패하면 앞선 부분 결과도 저장하지 않는다.
 
+[하위 섹션 생성](docs/cli.md#하위-섹션-생성)은 부모 ID로 마지막 자식 절을 추가한다. 제목 수준을 직접 조립하지 않고 새 문서의 계층을 만들고 문단·요구사항을 채울 수 있다.
+
 [섹션 문단 삽입](docs/cli.md#섹션-문단-삽입)으로 빈 섹션에 첫 문단을 쓰거나 기존 본문에 문단을 추가할 수 있다. 새 문서 생성부터 삽입·수정·검증·HTML 출력까지 GUI 없이 실행한다.
 
 Generic directive 본문에 여러 문단·평면 목록·코드 블록을 함께 담을 수 있다. [예제](examples/directive-blocks.narudoc)와 [문법·이행 안내](docs/format.md)를 참고한다. 0.0.2는 `body → children` 공개 모델/조회 JSON의 breaking change이며 기존 source를 새 parser로 재파싱해야 한다.

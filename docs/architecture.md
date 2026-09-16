@@ -34,6 +34,8 @@ ID 변경은 parser가 기록한 heading `idRange`, directive의 ID 속성 `valu
 
 ## 저장과 안전
 
+`insertChildSection`은 Core의 전체 section 범위를 사용해 기존 자손 뒤에 삽입한다. 제목 level은 부모 + 1로 제한하고 새 ID/제목 및 전체 결과를 검증한다. 마지막 블록 끝의 삽입 patch 하나로 기존 원문과 trailing whitespace를 유지한다. CLI/batch는 같은 operation을 사용하며 기존 section 경계·patch·저장 계약 확장이므로 새 ADR을 추가하지 않는다.
+
 CLI는 엄격한 UTF-8 decoding, 원본 SHA-256 revision, 협조적 lock, 같은 폴더 임시 파일과 rename을 담당한다. 저장 직전에 원본 revision을 다시 확인한다. symlink·hardlink 파일 편집은 MVP에서 거부한다. 외부의 비협조적 writer에 대한 완전한 compare-and-swap이나 전원 장애 내구성은 보장하지 않는다. lock은 자동으로 빼앗거나 삭제하지 않는다.
 
 HTML은 텍스트·속성을 escape하고 위험 URL을 막는다. raw HTML·코드·directive를 실행하지 않는다. 렌더링은 네트워크·파일 읽기를 하지 않는다.

@@ -18,6 +18,7 @@
 | `new FILE` | `--title TITLE`, `--id ID` | 새 문서 생성; 생략 시 제목 `Untitled`, ID `document` |
 | `heading set-title FILE --id ID --title TITLE` | 편집 공통 옵션 | 제목 변경 |
 | `section insert FILE --after ID --id NEW_ID --title TITLE` | 편집 공통 옵션 | 지정 섹션 뒤에 동급 섹션 삽입 |
+| `section insert-child FILE --parent ID --id NEW_ID --title TITLE` | 편집 공통 옵션 | 부모의 마지막 자식 섹션 생성; level은 부모 + 1 |
 | `section remove FILE --id ID` | 편집 공통 옵션 | 섹션과 하위 내용 삭제 |
 | `section move FILE --id ID --after ID` | 편집 공통 옵션 | 같은 부모·같은 level의 섹션 이동 |
 | `paragraph replace FILE --id SECTION --index 0 --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 자식 문단 교체; index는 0부터 시작 |
@@ -119,6 +120,20 @@ pnpm exec narudoc id rename examples/engineering.narudoc --id REQ-001 --new-id R
 
 배치에는 `{ "type": "renameId", "id": "REQ-001", "newId": "REQ-CTRL-001" }`을 넣는다. ID와 참조가 같은 단계에서 바뀌므로 중간 참조 오류 없이 다음 단계에서 새 ID를 사용할 수 있다. 앞선 단계의 원문 범위가 바뀌어도 새 snapshot에서 위치를 계산한다.
 
+## 하위 섹션 생성
+
+`section insert-child FILE --parent ID --id NEW_ID --title TITLE`은 부모의 기존 자손 전체 뒤에 마지막 자식 섹션을 만든다. 새 제목 수준은 부모보다 한 단계 깊으며 부모의 다음 동급/상위 heading 앞에 삽입한다. 부모의 직접 본문 끝에 넣는 문단/directive 삽입과 위치 의미가 다르다. 기존 `section insert --after`는 동급 섹션 추가로 유지하며 `--parent`와 `--after`는 각 명령에서 혼용할 수 없다.
+
+```sh
+pnpm exec narudoc section insert-child sample.narudoc --parent control --id protection --title "Protection" --revision REVISION_FROM_INSPECT --dry-run --json
+```
+
+실제 저장은 같은 revision으로 `--dry-run`을 제거한다. 없는 부모 또는 heading이 아닌 대상은 `NARU_TARGET`(2), 6단계 부모·중복/잘못된 새 ID·잘못된 제목은 `NARU_ARGUMENT`(2), 깨진 참조를 포함한 결과는 `NARU_INVALID_DOCUMENT`(3)다. Revision·lock·크기 제한과 JSON 응답은 기존 편집 계약을 따른다. 반복 생성은 같은 ID 충돌이며 자동 중복 제거는 하지 않는다.
+
+Core/batch는 `{ "type": "insertChildSection", "parent": "control", "id": "protection", "title": "Protection" }`을 사용한다. 후속 단계에서 새 ID를 부모로 추가 계층을 만들거나 문단/directive를 추가할 수 있다. 후속 실패 시 전체 batch를 저장하지 않는다. [계층 작성 계획](../examples/hierarchy-edit.json)은 `design` 새 문서에서 제어·보호·검증 절과 요구사항을 작성한다.
+
+기존 문법·모델·응답 envelope와 section insert/move의 의미는 유지한다. 문서 migration은 없고 구버전은 새 명령/operation을 지원하지 않는다. 공개 Operation union의 exhaustive switch 소비자는 새 분기를 고려해야 한다. 원문/EOL/EOF 보존 규칙은 [파일 계약](format.md#편집-의미)을 따른다.
+
 ## 섹션 문단 삽입
 
 `paragraph insert FILE --id SECTION --index N --text TEXT`는 기존 섹션에 문단 하나를 추가한다. `get FILE --id SECTION --json`의 원문 또는 `inspect`의 블록을 조회하여 다음 heading 전까지의 직접 문단 수 n을 확인한다. Index는 기존 `paragraph replace`처럼 문단만 세며 directive 내부/하위 섹션 문단과 목록·코드는 제외한다. 0..n 중 n 미만은 해당 문단 앞, n은 본문의 마지막 블록 뒤이자 첫 하위/다음 heading 전에 삽입한다. 문단이 없으면 0으로 마지막 비문단 블록 뒤에 추가하고, 본문도 없으면 heading 뒤에 첫 문단을 만든다.
@@ -195,6 +210,7 @@ Core/batch의 타입은 `{ "type": "replaceDirectiveParagraph", "id": "REQ-001",
 | --- | --- |
 | `setHeadingTitle` | `id`, `title` |
 | `insertSection` | `after`, `id`, `title` |
+| `insertChildSection` | `parent`, `id`, `title` |
 | `removeSection` | `id` |
 | `moveSection` | `id`, `after` |
 | `replaceParagraph` | `id`, `index`, `text` |

@@ -20,6 +20,7 @@ Write:
   narudoc new FILE [--title TITLE] [--id ID]
   narudoc heading set-title FILE --id ID --title TITLE
   narudoc section insert FILE --after ID --id NEW_ID --title TITLE
+  narudoc section insert-child FILE --parent ID --id NEW_ID --title TITLE
   narudoc section remove FILE --id ID
   narudoc section move FILE --id ID --after ID
   narudoc paragraph replace FILE --id SECTION --index 0 --text TEXT
@@ -43,6 +44,7 @@ const commands: Record<string, string[]> = {
   'id rename': ['id', 'new-id', 'revision', 'dry-run'],
   'heading set-title': ['id', 'title', 'dry-run', 'revision'],
   'section insert': ['after', 'id', 'title', 'dry-run', 'revision'],
+  'section insert-child': ['parent', 'id', 'title', 'dry-run', 'revision'],
   'section remove': ['id', 'dry-run', 'revision'],
   'section move': ['id', 'after', 'dry-run', 'revision'],
   'paragraph replace': ['id', 'index', 'text', 'dry-run', 'revision'],
@@ -74,6 +76,7 @@ export async function main(args: string[]): Promise<number> {
       value: { type: 'string' }, revision: { type: 'string' }, to: { type: 'string' }, output: { type: 'string' },
       operations: { type: 'string' },
       section: { type: 'string' }, from: { type: 'string' },
+      parent: { type: 'string' },
       'new-id': { type: 'string' },
     } as const;
     const { values, positionals, tokens } = parseArgs({ args, options, allowPositionals: true, strict: true, tokens: true });
@@ -174,6 +177,7 @@ export async function main(args: string[]): Promise<number> {
       case 'id rename': operation = { type: 'renameId', id: need('id'), newId: need('new-id') }; break;
       case 'heading set-title': operation = { type: 'setHeadingTitle', id: need('id'), title: need('title') }; break;
       case 'section insert': operation = { type: 'insertSection', id: need('id'), after: need('after'), title: need('title') }; break;
+      case 'section insert-child': operation = { type: 'insertChildSection', parent: need('parent'), id: need('id'), title: need('title') }; break;
       case 'section remove': operation = { type: 'removeSection', id: need('id') }; break;
       case 'section move': operation = { type: 'moveSection', id: need('id'), after: need('after') }; break;
       case 'paragraph replace':

@@ -78,6 +78,19 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
       const text = `${'#'.repeat(target.heading.level)} ${operation.title} {#${operation.id}}${doc.eol}${doc.eol}`;
       edits = [{ start: point, end: point, expected: '', text: separator(source.slice(0, point), text, doc.eol) + text }]; break;
     }
+    case 'insertChildSection': {
+      title(operation.title); scalar(operation.id, 'New ID'); id(operation.id);
+      const parent = getSection(doc, operation.parent);
+      if (parent.heading.level === 6) throw new NaruError('NARU_ARGUMENT', 'A level 6 section cannot have a child section.');
+      if (doc.blocks.some(block => 'id' in block && block.id === operation.id)) throw new NaruError('NARU_ARGUMENT', `ID already exists: ${operation.id}`);
+      // Include every descendant, not just the parent's direct body.
+      let end = doc.blocks.indexOf(parent.heading) + 1;
+      while (end < doc.blocks.length && doc.blocks[end]!.range.start < parent.end) end++;
+      const point = doc.blocks[end - 1]!.range.end, next = doc.blocks[end];
+      const heading = `${'#'.repeat(parent.heading.level + 1)} ${operation.title} {#${operation.id}}`;
+      const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
+      edits = [{ start: point, end: point, expected: '', text: doc.eol.repeat(2) + heading + right }]; break;
+    }
     case 'removeSection': {
       const target = getSection(doc, operation.id);
       edits = [{ start: target.start, end: target.end, expected: source.slice(target.start, target.end), text: '' }]; break;

@@ -46,6 +46,10 @@ ID는 `[A-Za-z][A-Za-z0-9._:-]*`이고 문서 내 유일하다. 문단마다 ID�
 
 ## 편집 의미
 
+`insertChildSection`은 부모 heading ID로 마지막 자식 섹션을 생성한다. 부모 level 1..5에서는 새 level을 부모 + 1로 정하며 level 6 아래는 거부한다. 기존 자손 전체 뒤이자 부모의 다음 동급/상위 heading 전에 추가하므로 기존 자손의 순서/부모 관계를 바꾸지 않는다. 새 ID는 heading/directive를 포함해 문서 내 유일해야 한다. 기존 `insertSection`의 동급 삽입과 section move의 같은 부모 제약은 유지한다.
+
+부모 섹션 전체 범위의 마지막 블록 끝에 새 heading과 필요한 경계 개행만 삽입한다. 기존 원문·BOM·혼합 개행·공백을 재작성하지 않는다. 새 개행은 문서의 첫 EOL(없으면 LF)을 따르고, EOF에서는 기존 trailing 공백/개행이 새 heading 뒤에 남아 마지막 개행 유무를 유지한다. 결과를 다시 parse/validate하며 제목의 내부 참조도 확인한다. 같은 ID로 반복 실행하면 중복 오류다.
+
 `insertDirective`는 `sectionId`가 가리키는 heading의 직접 본문 끝(첫 하위/다음 heading 전)에 새 generic directive를 추가한다. 기존 마지막 직접 블록 뒤에 새 원문과 필요한 경계 개행만 삽입하며 기존 블록·공백·BOM·혼합 개행은 재작성하지 않는다. EOF에서는 기존 마지막 블록 뒤의 공백·개행이 새 directive 뒤에 남아 마지막 개행 유무를 유지한다. 이름에 따른 도메인 스키마는 없다. 새 ID는 필수이며 문서 내 유일해야 한다.
 
 입력은 source range가 없는 `DirectiveInput`/`DirectiveChildInput`이다. `name`, `id`, `attributes`, `children`을 모두 제공한다. 이름은 `[A-Za-z][A-Za-z0-9_-]*`, ID는 기존 규칙을 따른다. Attributes는 문자열 값의 객체이며 `id`·예약 key·알 수 없는 필드·잘못된 타입을 거부한다. 속성 값은 앞뒤 공백 없는 한 줄 문자열(빈 값 허용)이다. CLI JSON의 중복 key도 거부한다. Children은 빈 배열 또는 다음 객체의 배열이다.
