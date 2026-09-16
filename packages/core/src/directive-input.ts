@@ -1,14 +1,7 @@
-import { ID_PATTERN, NaruError, validKey, wellFormed, type DirectiveInput, type InsertDirectiveOperation } from '@naruforge/narudoc-model';
+import { ID_PATTERN, NaruError, readInput, readOperation, directiveInputSchema, validKey, wellFormed, type DirectiveInput, type InsertDirectiveOperation } from '@naruforge/narudoc-model';
 import { parseDocument } from '@naruforge/narudoc-parser';
 
 function invalid(message: string): never { throw new NaruError('NARU_ARGUMENT', message); }
-function object(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) &&
-    (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
-}
-function fields(value: unknown, required: string[], optional: string[] = []): asserts value is Record<string, unknown> {
-  if (!object(value) || required.some(key => !Object.hasOwn(value, key)) || Object.keys(value).some(key => !required.includes(key) && !optional.includes(key))) invalid('Unexpected or missing directive input fields.');
-}
 function text(value: unknown): asserts value is string {
   if (typeof value !== 'string' || !wellFormed(value) || value.includes('\0')) invalid('Expected a well-formed Unicode string without NUL.');
 }
@@ -18,23 +11,18 @@ function scalar(value: unknown, empty = false): asserts value is string {
 }
 /** Runtime validation shared by the CLI and direct Core callers. */
 export function readDirectiveInput(value: unknown): DirectiveInput {
-  fields(value, ['name', 'id', 'attributes', 'children']);
-  scalar(value.name); scalar(value.id);
-  if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(value.name)) invalid('Invalid directive name.');
-  if (!ID_PATTERN.test(value.id)) invalid('Invalid directive ID.');
-  if (!object(value.attributes)) invalid('attributes must be an object.');
-  for (const [key, val] of Object.entries(value.attributes)) {
+  const input = readInput(directiveInputSchema, value);
+  scalar(input.name); scalar(input.id);
+  if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(input.name)) invalid('Invalid directive name.');
+  if (!ID_PATTERN.test(input.id)) invalid('Invalid directive ID.');
+  for (const [key, val] of Object.entries(input.attributes)) {
     if (!validKey(key) || key === 'id') invalid('Invalid or repeated ID attribute.');
     scalar(val, true);
   }
-  if (!Array.isArray(value.children)) invalid('children must be an array.');
-  for (const child of value.children) {
-    if (!object(child)) invalid('Expected a child object.');
+  for (const child of input.children) {
     switch (child.type) {
-      case 'paragraph': fields(child, ['type', 'text']); text(child.text); break;
+      case 'paragraph': text(child.text); break;
       case 'list': {
-        fields(child, ['type', 'ordered', 'items'], ['start']);
-        if (typeof child.ordered !== 'boolean' || !Array.isArray(child.items) || !child.items.length) invalid('Expected a nonempty flat list.');
         if (Object.hasOwn(child, 'start') && (!child.ordered || typeof child.start !== 'number' || !Number.isSafeInteger(child.start) || child.start < 0)) invalid('start is only allowed as a non-negative integer on ordered lists.');
         const start = child.start ?? 1;
         if (child.ordered && (start as number) + child.items.length - 1 > 999999999) invalid('Ordered list numbers must fit nine digits.');
@@ -42,8 +30,8 @@ export function readDirectiveInput(value: unknown): DirectiveInput {
         break;
       }
       case 'code':
-        fields(child, ['type', 'value'], ['language']); text(child.value);
-        if (Object.hasOwn(child, 'language')) {
+        text(child.value);
+        if (child.language !== undefined) {
           scalar(child.language, true);
           if (child.language.includes('`')) invalid('Code language must not contain backticks.');
         }
@@ -51,14 +39,14 @@ export function readDirectiveInput(value: unknown): DirectiveInput {
       default: invalid('Unsupported directive child type.');
     }
   }
-  return value as unknown as DirectiveInput;
+  return input;
 }
 export function readInsertDirective(value: unknown): InsertDirectiveOperation {
-  fields(value, ['type', 'sectionId', 'name', 'id', 'attributes', 'children']);
-  if (value.type !== 'insertDirective') invalid('Expected insertDirective.');
-  scalar(value.sectionId);
-  readDirectiveInput({ name: value.name, id: value.id, attributes: value.attributes, children: value.children });
-  return value as unknown as InsertDirectiveOperation;
+  const input = readOperation(value);
+  if (input.type !== 'insertDirective') invalid('Expected insertDirective.');
+  scalar(input.sectionId);
+  readDirectiveInput({ name: input.name, id: input.id, attributes: input.attributes, children: input.children });
+  return input;
 }
 
 /** Only newly authored content is serialized; existing document slices are never serialized. */

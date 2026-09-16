@@ -58,7 +58,7 @@ test('reject structural injection, malformed input, broken references and bad ta
   }
   assert.throws(() => planOperation(doc, operation('[bad](#missing)')), e => e.code === 'NARU_INVALID_DOCUMENT');
   for (const index of [-1, 0.5, 3, NaN, Number.MAX_SAFE_INTEGER + 1]) {
-    assert.throws(() => planOperation(doc, operation('text', index)), e => e.code === 'NARU_TARGET');
+    assert.throws(() => planOperation(doc, operation('text', index)), e => e.code === (index === 3 ? 'NARU_TARGET' : 'NARU_ARGUMENT'));
   }
   for (const id of ['missing', 'design']) assert.throws(() => planOperation(doc, operation('text', 0, id)), e => e.code === 'NARU_TARGET');
   assert.throws(() => planOperation(parseDocument(':::x\nid: E\n:::'), operation('text', 0, 'E')), e => e.code === 'NARU_TARGET');

@@ -8,36 +8,40 @@
 
 아래 표의 모든 일반 명령은 `--json`을 받을 수 있다. `FILE`은 하나만 지정하며 `--stdin`과 동시에 지정할 수 없다. 알 수 없는 명령·옵션, 반복 옵션과 명령에 맞지 않는 옵션은 인자 오류다.
 
-| 명령 | 명령별 옵션 | 의미 |
+<!-- generated:commands:start -->
+| Command | Options (`!` required) | Purpose |
 | --- | --- | --- |
-| `inspect FILE` | `--stdin` | 모델·길이·진단을 항상 JSON으로 출력 |
-| `table get FILE --section ID --index N` | `--stdin` | 직접 표 조회 |
-| `table insert FILE --section ID --from INPUT` | 편집 공통 옵션 | 표 JSON DTO 생성 |
-| `table set-cell FILE --section ID --index N --part header\|body --row N --column N --text TEXT` | 편집 공통 옵션 | 셀 내용만 수정 |
-| `outline FILE` | `--stdin` | 제목과 섹션 구조 조회 |
-| `get FILE --id ID` | `--stdin` | ID 대상 조회; heading이면 해당 섹션의 원문 반환 |
-| `validate FILE` | `--stdin` | 문서 진단과 유효성 판단 |
-| `render FILE --to html` | `--stdin`, `--output FILE` | 유효한 문서를 HTML로 출력 |
-| `new FILE` | `--title TITLE`, `--id ID` | 새 문서 생성; 생략 시 제목 `Untitled`, ID `document` |
-| `heading set-title FILE --id ID --title TITLE` | 편집 공통 옵션 | 제목 변경 |
-| `text set FILE --kind KIND --id ID --index N --path N.N --expected TEXT --text TEXT` | 편집 공통 옵션 | 일반 inline text run 의미 편집 |
-| `section insert FILE --after ID --id NEW_ID --title TITLE` | 편집 공통 옵션 | 지정 섹션 뒤에 동급 섹션 삽입 |
-| `section insert-child FILE --parent ID --id NEW_ID --title TITLE` | 편집 공통 옵션 | 부모의 마지막 자식 섹션 생성; level은 부모 + 1 |
-| `section remove FILE --id ID` | 편집 공통 옵션 | 섹션과 하위 내용 삭제 |
-| `section move FILE --id ID --after ID` | 편집 공통 옵션 | 같은 부모·같은 level의 섹션 이동 |
-| `paragraph replace FILE --id SECTION --index 0 --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 자식 문단 교체; index는 0부터 시작 |
-| `paragraph insert FILE --id SECTION --index N --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 문단 앞 또는 본문 끝에 문단 하나 삽입 |
-| `directive set FILE --id ID --key KEY --value VALUE` | 편집 공통 옵션 | 속성 추가·변경; ID 변경 제외 |
-| `directive insert FILE --section ID --from INPUT` | 편집 공통 옵션 | Semantic JSON으로 새 directive 생성; INPUT은 파일 또는 `-` |
-| `directive replace-paragraph FILE --id ID --index N --text TEXT` | 편집 공통 옵션 | Directive 본문의 N번째 문단 교체; 목록·코드는 세지 않음 |
-| `id rename FILE --id OLD --new-id NEW` | 편집 공통 옵션 | ID 정의와 같은 문서 내부 참조를 함께 변경 |
-| `batch FILE --operations PLAN --revision SHA256` | `--dry-run` | 단일 문서의 의미 편집 목록을 순차 검증 후 한 번 저장 |
+| `edit FILE` | `--no-open`, `--port` | Open one local file in the visual editor. |
+| `inspect FILE` | `--stdin` | Inspect parsed blocks and diagnostics as JSON. |
+| `outline FILE` | `--stdin` | List section IDs, titles and hierarchy. |
+| `get FILE` | `--stdin`, `--id !` | Read an ID target; headings include their whole section. |
+| `table get FILE` | `--stdin`, `--section !`, `--index !` | Read one direct table by section and index. |
+| `validate FILE` | `--stdin` | Check document syntax, IDs and references. |
+| `render FILE` | `--stdin`, `--to !`, `--output` | Render safe HTML to stdout or a new file. |
+| `new FILE` | `--title`, `--id` | Create a new file without overwriting an existing file. |
+| `batch FILE` | `--operations !`, `--revision !`, `--dry-run` | Plan 1..100 sequential operations and save once on success. |
+| `capabilities` | `--operation` | Discover operations; select one for schema, example and retry meaning. |
+| `text set FILE` | `--kind !`, `--id !`, `--index !`, `--path !`, `--expected !`, `--text !`, `--revision`, `--dry-run` | Edit one ordinary inline text run without rewriting markup. |
+| `table insert FILE` | `--section !`, `--from !`, `--revision`, `--dry-run` | Append a bounded pipe table to a section direct body. |
+| `table set-cell FILE` | `--section !`, `--index !`, `--part !`, `--row !`, `--column !`, `--text !`, `--revision`, `--dry-run` | Change one table cell while preserving separator and padding. |
+| `directive insert FILE` | `--section !`, `--from !`, `--revision`, `--dry-run` | Append a generic directive from an authoring object. |
+| `id rename FILE` | `--id !`, `--new-id !`, `--revision`, `--dry-run` | Rename an ID and its parsed internal references together. |
+| `heading set-title FILE` | `--id !`, `--title !`, `--revision`, `--dry-run` | Change a heading title, retaining its ID and spacing. |
+| `section insert FILE` | `--after !`, `--id !`, `--title !`, `--revision`, `--dry-run` | Insert a sibling section after an existing section. |
+| `section insert-child FILE` | `--parent !`, `--id !`, `--title !`, `--revision`, `--dry-run` | Add a child after the parent’s existing descendants. |
+| `section remove FILE` | `--id !`, `--revision`, `--dry-run` | Remove a section and its descendants. |
+| `section move FILE` | `--id !`, `--after !`, `--revision`, `--dry-run` | Move a section after a sibling without serializing its contents. |
+| `paragraph replace FILE` | `--id !`, `--index !`, `--text !`, `--revision`, `--dry-run` | Replace one direct section paragraph. |
+| `paragraph insert FILE` | `--id !`, `--index !`, `--text !`, `--revision`, `--dry-run` | Insert a paragraph before index, or append at paragraph count. |
+| `directive replace-paragraph FILE` | `--id !`, `--index !`, `--text !`, `--revision`, `--dry-run` | Replace a paragraph inside a generic directive. |
+| `directive set FILE` | `--id !`, `--key !`, `--value !`, `--revision`, `--dry-run` | Set a generic directive attribute. |
+<!-- generated:commands:end -->
 
 편집 공통 옵션은 `--dry-run`, `--revision SHA256`이다. 기존 문서를 수정하는 모든 개별 편집과 `batch`에서 지원하며 읽기 명령과 `new`에서는 지원하지 않는다. 개별 편집의 `--revision`은 선택 옵션이지만 조회 후 변경하는 자동화에서는 사용한다. `batch`에서는 필수다.
 
 읽기 명령은 `FILE` 대신 `-` 또는 `--stdin`을 사용할 수 있다. 기존 문서 편집과 `new`는 실제 파일 경로가 필요하다. `--to`는 `html`만 지원한다. `new`와 `render --output`은 기존 파일을 덮어쓰지 않는다.
 
-`--help` 또는 인자 없는 실행은 도움말 텍스트를 stdout에 출력한다. `--help --json`도 텍스트다. `--version`은 버전 텍스트, `--version --json`은 `{"version":"0.0.3"}`을 출력한다. 이 특수 응답들은 일반 문서 envelope를 사용하지 않는다.
+`--help` 또는 인자 없는 실행은 전체 안내를, `table --help`는 그룹 안내를, `table set-cell --help`는 해당 옵션·index·예제·오류 복구를 출력한다. Help는 문서 파일을 읽거나 수정하지 않는다. `--help --json`도 텍스트다. `--version`은 버전 텍스트, `--version --json`은 `{"version":"0.0.3"}`을 출력한다. 이 특수 응답들은 일반 문서 envelope를 사용하지 않는다.
 
 ## JSON 응답
 
@@ -293,3 +297,14 @@ Parser가 기록한 text range의 원문과 표시 text가 동일한 단일 줄 
 ## 로컬 시각 편집 실행
 
 `pnpm narudoc edit FILE [--no-open] [--port N]`은 checkout의 지정 파일 하나에 대한 loopback editor를 시작한다. 기본 browser를 열고 실행별 인증 URL을 출력한다. `--json`은 `{ "url": "..." }`을 출력하며 프로세스는 서버를 유지한다. 기본 port는 0(자동), 허용값은 0..65535다. stdin/raw source/path browsing은 지원하지 않는다. 기존 headless 명령은 브라우저를 실행하지 않는다. 저장·충돌·제한 및 검증은 [로컬 편집기 문서](local-editor.md)를 따른다.
+
+## 기능 발견과 입력 원본
+
+`pnpm exec narudoc capabilities --json`은 짧은 operation 목록이며, `pnpm exec narudoc capabilities --operation setTableCell --json`은 선택한 입력 schema·예제·target·부작용·재시도 의미를 반환한다. 일반 문서 envelope와 별개로 schemaVersion 1을 포함한다. 일반 편집은 heading/paragraph/directive/table 명령을 우선 사용하며 `text set`의 inline path는 정밀 편집용이다.
+
+명령표는 [CLI binding](../apps/cli/src/commands.ts)과 [의미 입력 정의](../packages/model/src/operation-contract.ts)에서 생성한다. 빌드 후 `node scripts/verify-contracts.mjs`로 최신성을 검사하며 의도한 변경은 `--write`로 갱신한다. schema 검증은 shape/enum/Unicode/basic type 검사이고 문서 ID·참조·문법·유효성 검사는 Core가 수행한다.
+
+CLI JSON plan/DTO와 웹 요청은 같은 Node reader로 duplicate key(escaped key 포함)를 거부하며 선두 BOM 하나를 허용한다. Web의 전체 요청은 최대 10000 operations, 기존 CLI/batch는 1..100이며 의미 operation의 한계가 아닌 host/호환 입력 정책이다. 공통 `planSequence`는 각 입력을 직전 결과에서 검사한다. 웹 실패에도 전체 0-based operationIndex와 해당 단계 diagnostics가 포함된다. 중간 결과는 저장하지 않는다. 빈 웹 저장은 기존 no-op 경로를 유지한다.
+
+직접 JS API의 unknown field/잘못된 enum·기본 타입 거부와 웹 duplicate key 거부가 강화되었다. 기존 정상 명령·문법·저장 형식과 schemaVersion은 유지되며 migration은 없다. 진단 message 문자열에 의존하지 말고 code와 실패 index로 처리한다. 상세 선택은 [ADR 0010](adr/0010-executable-operation-contract.md)을 참고한다.
+`planOperation` 직접 호출의 음수·소수·비안전 정수 index는 이제 공통 shape 오류 `NARU_ARGUMENT`이다. 유효한 정수가 현재 문서 범위를 벗어나면 `NARU_TARGET`이며 기존 CLI 종료 코드 2는 유지한다.
