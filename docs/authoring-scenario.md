@@ -26,6 +26,7 @@ node scripts/verify-authoring.mjs
 | `batch.narudoc`, `batch.html` | 같은 수정 요청을 배치 한 번으로 처리한 결과 |
 | `rejected-batch.narudoc`, `rejected-plan.json` | 마지막 작업 실패로 원본이 유지된 문서와 실패 계획 |
 | `renamed.narudoc` | 요구사항 ID와 내부 참조를 함께 바꾼 문서 |
+| `directive-paragraph.narudoc`, `directive-paragraph.html` | 원본 복사본의 요구사항 본문 문단을 편집·검증·출력한 결과 |
 
 ## 확인하는 사용자 흐름
 
@@ -38,6 +39,7 @@ node scripts/verify-authoring.mjs
 7. [engineering-edit.json](../examples/engineering-edit.json)을 원본 복사본에 `batch`로 적용한다. 전체 dry-run은 쓰지 않고, 실제 배치 저장의 원문과 HTML은 위 개별 편집 결과와 같아야 한다.
 8. 같은 계획 끝에 존재하지 않는 섹션 삭제를 추가한다. 네 번째 작업이 실패하면 앞선 세 작업도 저장되지 않고 원본 bytes가 유지되어야 한다.
 9. 편집 결과 복사본의 `REQ-001`을 `REQ-CTRL-001`로 바꾼다. dry-run/실제 저장 결과가 같고, ID 정의와 내부 링크만 변경되며 검증과 HTML의 목적지·링크가 일치해야 한다.
+10. 별도 원본 복사본에 [본문 문단 편집 계획](../examples/directive-paragraph-edit.json)을 적용한다. `get`에서 얻은 revision으로 batch dry-run/실제 저장을 실행하고, 요구사항 문장만 바뀐 전체 bytes와 검증·HTML을 확인한다. 개별 CLI와 batch 실패 보존은 [본문 편집 acceptance test](../tests/acceptance/directive-edit.test.mjs)에서 검증한다.
 
 ## 사용하면서 드러나는 제약
 

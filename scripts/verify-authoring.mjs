@@ -125,6 +125,21 @@ try {
   const renamedHtml = run(['render', renamedFile, '--to', 'html']).html;
   assert.match(renamedHtml, /href="#REQ-CTRL-001"/);
   assert.match(renamedHtml, /id="REQ-CTRL-001"/);
+  const paragraphFile = join(output, 'directive-paragraph.narudoc');
+  await writeFile(paragraphFile, original);
+  const paragraphRevision = run(['get', paragraphFile, '--id', 'REQ-001']).revision;
+  const paragraphArgs = ['batch', paragraphFile, '--operations', join(root, 'examples/directive-paragraph-edit.json'), '--revision', paragraphRevision];
+  const paragraphPreview = run([...paragraphArgs, '--dry-run']);
+  assert.deepEqual(await readFile(paragraphFile), original);
+  const paragraphSaved = run(paragraphArgs);
+  assert.equal(paragraphSaved.nextRevision, paragraphPreview.nextRevision);
+  assert.deepEqual(paragraphSaved.steps, paragraphPreview.steps);
+  assert.deepEqual(await readFile(paragraphFile), Buffer.from(original.toString('utf8').replace(
+    'The controller shall validate the requested operating mode.', 'The controller shall validate all inputs.')));
+  assert.equal(run(['validate', paragraphFile]).valid, true);
+  const paragraphHtmlPath = join(output, 'directive-paragraph.html');
+  run(['render', paragraphFile, '--to', 'html', '--output', paragraphHtmlPath]);
+  assert.match(await readFile(paragraphHtmlPath, 'utf8'), /<p>The controller shall validate all inputs\.<\/p>/);
   assert.deepEqual(await readFile(join(root, 'examples/engineering.narudoc')), original);
   console.log(`PASS: authoring scenario; artifacts: ${output}`);
 } finally {

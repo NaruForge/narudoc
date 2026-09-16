@@ -9,6 +9,7 @@ const fields: Record<Operation['type'], readonly string[]> = {
   removeSection: ['type', 'id'],
   moveSection: ['type', 'id', 'after'],
   replaceParagraph: ['type', 'id', 'index', 'text'],
+  replaceDirectiveParagraph: ['type', 'id', 'index', 'text'],
   setDirectiveAttribute: ['type', 'id', 'key', 'value'],
 };
 function object(value: unknown): value is Record<string, unknown> {

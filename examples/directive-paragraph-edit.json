@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "operations": [
+    {
+      "type": "replaceDirectiveParagraph",
+      "id": "REQ-001",
+      "index": 0,
+      "text": "The controller shall validate all inputs."
+    }
+  ]
+}

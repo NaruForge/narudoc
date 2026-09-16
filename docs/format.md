@@ -46,7 +46,11 @@ ID는 `[A-Za-z][A-Za-z0-9._:-]*`이고 문서 내 유일하다. 문단마다 ID�
 
 ## 편집 의미
 
-Section은 heading 시작부터 다음 동급/상위 heading 직전 또는 EOF까지이며 내부 하위 섹션과 뒤쪽 공백을 포함한다. 이동은 같은 부모의 동급 섹션 사이에서만 허용한다. 이동 대상 내부로 이동할 수 없다. 문단 교체의 index는 지정 section의 직접 자식 문단을 대상으로 한 0-based index다. Directive 내부 문단은 세지 않으며 본문 전용 편집 operation은 없다. 속성 편집과 섹션 이동은 본문을 재직렬화하지 않는다.
+Section은 heading 시작부터 다음 동급/상위 heading 직전 또는 EOF까지이며 내부 하위 섹션과 뒤쪽 공백을 포함한다. 이동은 같은 부모의 동급 섹션 사이에서만 허용한다. 이동 대상 내부로 이동할 수 없다. Section 문단 교체의 index는 지정 section의 직접 자식 문단을 대상으로 한 0-based index다. Directive 내부 문단은 세지 않는다. 속성 편집과 섹션 이동은 본문을 재직렬화하지 않는다.
+
+`replaceDirectiveParagraph`는 directive ID와 본문 문단의 0-based index로 기존 문단 하나를 교체한다. `children` 중 paragraph만 세므로 목록·코드는 index에 포함하지 않는다. 빈 본문에 문단을 삽입하거나 기존 문단을 삭제하는 기능은 아니다. 입력은 directive 문맥에서 정확히 한 문단이어야 하며 앞뒤 빈 줄·추가 블록·닫는 delimiter·중첩 directive를 거부한다. Heading·metadata처럼 보이는 줄은 기존 본문 문법에 따라 literal paragraph다. 교체 후 전체 문서를 재파싱·검증하므로 깨진 내부 참조도 거부한다.
+
+원래 문단과 정확히 같은 입력은 혼합 개행까지 보존하는 no-op이다. 변경 입력의 개행은 문서의 첫 개행 방식에 맞추며 대상 범위 안의 최소 patch만 적용한다. Header·다른 자식·문단 주변 공백·문서의 마지막 개행 유무는 유지한다. 기존 문법·모델과 `replaceParagraph` 의미는 변경하지 않으며 문서 마이그레이션은 없다.
 
 ID 변경은 `renameId`로 정의와 같은 문서 내부 참조를 함께 수정한다. 파서가 인식한 링크만 대상으로 하며, percent-encoded fragment는 decode한 ID로 비교하고 변경된 URL은 `#NEW`로 기록한다. 같은 ID는 no-op이다. 코드·일반 텍스트·외부 링크·다른 문서의 참조는 바꾸지 않는다. 일반 속성 편집으로 ID를 바꾸는 것은 계속 거부한다. 상세 명령·실패 계약은 [CLI](cli.md)를 따른다.
 
