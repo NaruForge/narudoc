@@ -7,6 +7,7 @@ NaruDoc은 사람이 읽는 `.narudoc` 파일을 Git·AI Agent·자동화가 함
 - 변경 전에 [프로젝트 기록 규약](docs/project-records.md)을 읽고 실제 GitHub Issue의 승인 범위와 완료 조건을 확인한다.
 - `git status --short`와 관련 diff를 확인한다. 사용자·다른 Agent의 변경과 기존 `.agents/`, Issue 양식·기록 규약을 보존한다.
 - [제품](docs/product.md), [구조](docs/architecture.md), [문법](docs/format.md)을 작업 범위에 맞게 읽는다.
+- 설계 착수와 PR 검토에서 [ADR·계약 변경 절차](docs/project-records.md)에 따라 ADR 필요 여부와 근거를 남긴다. CLI 자동화 계약은 [CLI 문서](docs/cli.md)를 따른다.
 
 ## 코드 배치와 경계
 
