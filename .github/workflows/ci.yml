@@ -27,6 +27,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      - run: node scripts/verify-authoring.mjs
       - run: pnpm exec narudoc --version
       - run: pnpm exec narudoc validate examples/engineering.narudoc
       - run: git diff --exit-code
