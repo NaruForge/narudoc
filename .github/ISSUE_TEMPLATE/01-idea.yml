@@ -1,0 +1,60 @@
+name: Idea
+description: 구현 승인 전 제안을 기록합니다.
+labels: [idea, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        구현 승인 전 제안용 양식입니다. 제출은 수행 승인을 뜻하지 않습니다.
+        이 Issue는 공개됩니다. 공개 가능한 정보만 포함하세요.
+        Issue 간 선행 관계는 생성 후 Relationships의 blocked by / blocking으로 연결합니다.
+        진행 상태는 전용 Project의 Status에서만 관리합니다.
+  - type: textarea
+    id: context
+    attributes:
+      label: 배경 또는 문제
+      description: 어떤 상황과 근거에서 이 제안이 나왔는지 설명하세요.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 원하는 결과
+      description: 이 제안이 해결하려는 문제와 기대하는 결과를 적으세요.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 범위
+      description: 제안이 다루는 기능과 대상을 적으세요. 미정인 범위는 명시하세요.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: 비목표
+      description: 이번 제안에서 다루지 않을 내용을 적으세요. 없으면 없다고 적으세요.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 검증 가능한 완료 조건
+      description: 향후 구현을 승인한다면 어떤 관찰이나 검증으로 결과를 확인할지 제안하세요.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: 위험과 미확인 사항
+      description: 제약과 위험을 적으세요. Issue 간 의존 관계의 원본은 Relationships이며, 여기에는 상태 목록을 복제하지 않습니다. 없으면 없다고 적으세요.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 관련 근거
+      description: 관련 문서, 조사 결과, ADR 등의 링크를 적으세요. 아직 없으면 없다고 적으세요.
+    validations:
+      required: true
