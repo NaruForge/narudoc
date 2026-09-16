@@ -2,6 +2,12 @@
 
 이 문서는 현재 구현을 설명한다. 장기 목적은 [제품 비전](product.md), 명령과 자동화 계약은 [CLI 문서](cli.md)를 따른다. 아래에 연결한 ADR은 현재 선택을 앞으로 유지할지 검토하기 위해 작성한 제안이며, 실제 채택 상태는 각 ADR에서 확인한다. 구현이 존재한다는 사실을 과거 ADR 승인으로 해석하지 않는다.
 
+## 제품 원칙과 현재 구현
+
+현재 CLI는 엔진을 사용하는 최초 reference client다. 엔진은 아래 model/parser/core/renderer-html의 책임을 포괄하며, CLI는 인자·출력·파일 I/O를 담당한다. `headless`는 UI chrome이 없다는 뜻에 그치지 않고 핵심 문서 처리가 DOM·편집기 인스턴스 없이 실행된다는 뜻이다.
+
+향후 GUI/API adapter도 같은 엔진을 사용해야 한다는 [제품 원칙](product.md#엔진과-클라이언트의-관계)을 적용한다. GUI가 CLI subprocess를 반드시 호출해야 한다는 뜻은 아니며, 현재 GUI/SDK 배포나 모든 client 간 동등성 검증이 완료되었다는 뜻도 아니다. UI adapter의 화면 의존성과 엔진의 화면 독립성을 구분한다.
+
 ## 의존 경계
 
 - model → 내부 의존성 없음.
@@ -10,7 +16,7 @@
 - renderer-html → model.
 - apps/cli → core, renderer-html 및 공통 타입.
 
-라이브러리는 Node I/O·DOM·editor·네트워크에 의존하지 않는다. renderer는 원본을 재파싱하거나 Core 편집 로직을 복제하지 않는다. CLI는 Core operation을 호출하며 문서를 독자적으로 편집하지 않는다.
+위 엔진 라이브러리는 Node I/O·DOM·editor·네트워크에 의존하지 않는다. renderer는 원본을 재파싱하거나 Core 편집 로직을 복제하지 않는다. CLI는 Core operation을 호출하며 문서를 독자적으로 편집하지 않는다.
 
 ## 원본 소유권
 
