@@ -8,6 +8,7 @@ const fields: Record<Operation['type'], readonly string[]> = {
   renameId: ['type', 'id', 'newId'],
   setHeadingTitle: ['type', 'id', 'title'],
   insertSection: ['type', 'after', 'id', 'title'],
+  insertChildSection: ['type', 'parent', 'id', 'title'],
   removeSection: ['type', 'id'],
   moveSection: ['type', 'id', 'after'],
   replaceParagraph: ['type', 'id', 'index', 'text'],

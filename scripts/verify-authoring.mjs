@@ -181,6 +181,22 @@ try {
   assert.match(structuredHtml, /The controller validates all inputs/);
   assert.match(structuredHtml, /<ul>/); assert.match(structuredHtml, /<pre><code>/);
   assert.match(structuredHtml, /\[literal\]\(#missing\)/);
+  const hierarchyFile = join(output, 'hierarchy.narudoc');
+  const hierarchyCreated = run(['new', hierarchyFile, '--title', 'Design', '--id', 'design']);
+  const hierarchyArgs = ['batch', hierarchyFile, '--operations', join(root, 'examples/hierarchy-edit.json'), '--revision', hierarchyCreated.revision];
+  const hierarchyPreview = run([...hierarchyArgs, '--dry-run']);
+  assert.equal(await readFile(hierarchyFile, 'utf8'), '# Design {#design}\n');
+  const hierarchySaved = run(hierarchyArgs);
+  assert.deepEqual(hierarchySaved.steps, hierarchyPreview.steps);
+  assert.equal(hierarchySaved.nextRevision, hierarchyPreview.nextRevision);
+  assert.deepEqual(run(['outline', hierarchyFile]).sections.map(s => [s.id, s.level]), [['design', 1], ['control', 2], ['protection', 3], ['validation', 2]]);
+  assert.equal(run(['get', hierarchyFile, '--id', 'REQ-001']).node.name, 'requirement');
+  assert.equal(run(['validate', hierarchyFile]).valid, true);
+  const hierarchyHtmlPath = join(output, 'hierarchy.html');
+  run(['render', hierarchyFile, '--to', 'html', '--output', hierarchyHtmlPath]);
+  const hierarchyHtml = await readFile(hierarchyHtmlPath, 'utf8');
+  assert.match(hierarchyHtml, /<h3 id="protection"/);
+  assert.match(hierarchyHtml, /href="#validation"/);
   assert.deepEqual(await readFile(join(root, 'examples/engineering.narudoc')), original);
   console.log(`PASS: authoring scenario; artifacts: ${output}`);
 } finally {

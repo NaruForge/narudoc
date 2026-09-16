@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "operations": [
+    { "type": "insertChildSection", "parent": "design", "id": "control", "title": "Control" },
+    { "type": "insertChildSection", "parent": "design", "id": "validation", "title": "Validation" },
+    { "type": "insertChildSection", "parent": "control", "id": "protection", "title": "Protection" },
+    { "type": "insertParagraph", "id": "protection", "index": 0, "text": "Validate inputs before enabling [control](#control)." },
+    {
+      "type": "insertDirective", "sectionId": "protection", "name": "requirement", "id": "REQ-001",
+      "attributes": { "status": "draft" },
+      "children": [{ "type": "paragraph", "text": "Reject invalid inputs. See [validation](#validation)." }]
+    }
+  ]
+}
