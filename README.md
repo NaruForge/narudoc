@@ -2,15 +2,15 @@
 
 **Git-native, agent-native structured document engine.**
 
-NaruDoc의 본체는 사람이 읽는 `.narudoc` 원본과 편집기에 독립적인 문서 엔진이다. 사람·AI Agent·스크립트·CI는 같은 엔진으로 문서를 생성·조회·수정·검증·출력한다. CLI는 최초 reference client이자 계속 유지할 1급 인터페이스이며, API와 향후 Visual Editor도 같은 엔진을 사용하는 경로다.
+NaruDoc의 본체는 사람이 읽는 `.narudoc` 원본과 편집기에 독립적인 문서 엔진이다. 사람·AI Agent·스크립트·CI는 같은 엔진으로 문서를 생성·조회·수정·검증·출력한다. CLI는 최초 reference client이자 계속 유지할 1급 인터페이스이며, API와 로컬 Visual Editor도 같은 엔진을 사용하는 경로다.
 
 기존 SDoc에서 겪은 복잡한 JSON Git diff와 editor-dependent CLI를 해결하는 것이 출발점이다. 작은 의미 변경이 무관한 공백·개행·목록 표현의 재직렬화를 일으키지 않아야 한다.
 
-**Headless-first 설계와 사람이 쓰기 편한 WYSIWYG는 함께 추구한다.** CLI-first는 CLI-only가 아니다. 설계서·요구사항 같은 기술 문서를 사람이 시각적으로 작성하면서도, AI와 자동화는 편집기 실행 없이 같은 핵심 작업을 수행할 수 있어야 한다. 완성형 시각 편집은 장기 목표이며, 현재는 원본 보존을 검증하는 제한된 인메모리 프로토타입을 제공한다. 대상 사용자, 엔진과 client의 관계, 승인 정책과 성공 기준은 [제품 비전](docs/product.md)을 따른다.
+**Headless-first 설계와 사람이 쓰기 편한 WYSIWYG는 함께 추구한다.** CLI-first는 CLI-only가 아니다. 설계서·요구사항 같은 기술 문서를 사람이 시각적으로 작성하면서도, AI와 자동화는 편집기 실행 없이 같은 핵심 작업을 수행할 수 있어야 한다. 완성형 시각 편집은 장기 목표이며, 현재는 공통 엔진을 사용하는 제한된 단일 파일 로컬 편집기를 제공한다. 대상 사용자, 엔진과 client의 관계, 승인 정책과 성공 기준은 [제품 비전](docs/product.md)을 따른다.
 
 ## MVP 2 첫 단계 · v0.0.3
 
-현재 제공 범위는 CLI 조회, 제목·섹션·문단·directive·표 편집, validation, HTML 출력이다. 실사용 파일 편집 GUI, PDF, MCP, 실시간 협업, registry 공개 배포는 포함하지 않는다. API와 문법은 실험 단계이며 전체 CommonMark 호환이나 Word 대체를 주장하지 않는다. 구현·검증 근거는 [MVP Issue #2](https://github.com/NaruForge/narudoc/issues/2)에서 확인한다.
+현재 제공 범위는 CLI 조회, 제목·섹션·문단·directive·표 편집, validation, HTML 출력이다. 단일 파일 로컬 시각 편집·저장을 제공하며 PDF, MCP, 실시간 협업, registry 공개 배포는 포함하지 않는다. API와 문법은 실험 단계이며 전체 CommonMark 호환이나 Word 대체를 주장하지 않는다. 구현·검증 근거는 [MVP Issue #2](https://github.com/NaruForge/narudoc/issues/2)에서 확인한다.
 
 여러 의미 편집은 [단일 문서 배치](docs/cli.md#단일-문서-배치-편집)로 순차 검증한 뒤 한 번에 저장할 수 있다. 중간 편집이 실패하면 앞선 부분 결과도 저장하지 않는다.
 
@@ -41,6 +41,10 @@ pnpm exec narudoc render examples/engineering.narudoc --to html --output out.htm
 ```
 
 위 dry-run은 원본을 수정하지 않으며 실제 저장 성공을 보장하지 않는다. 실제 편집은 `--dry-run`을 제거한다. 자동화에서는 [revision을 포함한 사용 흐름과 오류 처리](docs/cli.md)를 따른다. `out.html`이 이미 있으면 출력은 실패하며 덮어쓰지 않는다. 아직 npm registry에 배포하지 않았으므로 `npx` 설치 명령을 제공하지 않는다.
+
+## 로컬 시각 편집
+
+빌드 후 `pnpm narudoc edit ./examples/visual-fidelity.narudoc`으로 지정 파일을 브라우저에서 열고 수정·저장한다. [실행/지원 범위와 충돌 처리](docs/local-editor.md)를 먼저 확인한다. 실제 예제 파일을 수정하므로 연습에는 복사본을 권장한다.
 
 ## 문서
 

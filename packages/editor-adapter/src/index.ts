@@ -160,7 +160,9 @@ export function mountDocument(host: HTMLElement, session: SourceSession, report:
   let sectionId: string | undefined, paragraphIndex = 0;
   const readonly = (parent: HTMLElement, block: Parameters<typeof renderBlockHtml>[0]) => {
     const wrapper = document.createElement('div'); wrapper.className = 'readonly-block'; wrapper.title = 'Read only';
-    wrapper.innerHTML = renderBlockHtml(block); wrapper.addEventListener('click', e => { if ((e.target as Element).closest('a')) e.preventDefault(); }); parent.append(wrapper);
+    if (block.type === 'metadata') { const pre = document.createElement('pre'); pre.textContent = session.source.slice(block.range.start, block.range.end); wrapper.append(pre); }
+    else wrapper.innerHTML = renderBlockHtml(block);
+    wrapper.addEventListener('click', e => { if ((e.target as Element).closest('a')) e.preventDefault(); }); parent.append(wrapper);
   };
   const editable = (parent: HTMLElement, target: TextTarget, tag: string) => {
     const wrapper = document.createElement(tag); wrapper.dataset.section = target.id; parent.append(wrapper);

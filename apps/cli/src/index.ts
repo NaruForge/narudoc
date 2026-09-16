@@ -1,3 +1,4 @@
+import { startEditor, openBrowser } from '@naruforge/narudoc-web';
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { BatchOperationError, NaruError, type Operation, type TextEdit } from '@naruforge/narudoc-model';
@@ -7,6 +8,9 @@ import { assertDocumentSize, createFile, load, readStdin, revision, save } from 
 import { parseJsonInput } from './json.js';
 
 const HELP = `NaruDoc — headless structured documents
+
+Local visual editor:
+  narudoc edit FILE [--no-open] [--port N]
 
 Read:
   narudoc table get FILE --section ID --index N [--json]
@@ -39,9 +43,10 @@ Write:
   New/output files never overwrite existing files.
 
 Exit: 0 success; 1 internal; 2 arguments/target; 3 document; 4 conflict; 5 I/O.
-Offsets: UTF-16 code units, half-open [start,end). No GUI, telemetry or network.
+Offsets: UTF-16 code units, half-open [start,end). No telemetry or remote service. edit runs an authenticated loopback server.
 `;
 const commands: Record<string, string[]> = {
+  edit: ['no-open', 'port'],
   'text set': ['kind', 'id', 'index', 'path', 'expected', 'text', 'dry-run', 'revision'],
   'table get': ['stdin', 'section', 'index'],
   'table insert': ['section', 'from', 'dry-run', 'revision'],
@@ -77,6 +82,7 @@ export async function main(args: string[]): Promise<number> {
   const emit = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
   try {
     const options = {
+      'no-open': { type: 'boolean' }, port: { type: 'string' },
       json: { type: 'boolean' }, help: { type: 'boolean' }, version: { type: 'boolean' },
       stdin: { type: 'boolean' }, 'dry-run': { type: 'boolean' },
       id: { type: 'string' }, title: { type: 'string' }, after: { type: 'string' },
@@ -120,6 +126,15 @@ export async function main(args: string[]): Promise<number> {
       if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) throw new NaruError('NARU_ARGUMENT', `--${key} must be a non-negative safe integer.`);
       return Number(value);
     };
+    if (command === 'edit') {
+      if (file === '-') throw new NaruError('NARU_ARGUMENT', 'edit requires a local file.');
+      const port = values.port === undefined ? 0 : integer('port');
+      if (port > 65535) throw new NaruError('NARU_ARGUMENT', 'Port must be 0 to 65535.');
+      const editor = await startEditor(file, port);
+      if (json) emit({ url: editor.url }); else process.stdout.write('NaruDoc local editor: ' + editor.url + '\nKeep this process running. Ctrl+C to stop.\n');
+      if (!values['no-open']) openBrowser(editor.url);
+      return 0;
+    }
     const write = command === 'new' || command === 'batch' || (command.includes(' ') && command !== 'table get');
     if (write && file === '-') throw new NaruError('NARU_ARGUMENT', 'In-place writes require a file, not stdin.');
     if (command === 'batch') {

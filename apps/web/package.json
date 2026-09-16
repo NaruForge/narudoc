@@ -1,5 +1,5 @@
 {
-  "name": "@naruforge/narudoc",
+  "name": "@naruforge/narudoc-web",
   "version": "0.0.3",
   "private": true,
   "type": "module",
@@ -9,24 +9,11 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist",
-    "bin"
-  ],
-  "engines": {
-    "node": ">=22"
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json"
-  },
   "dependencies": {
     "@naruforge/narudoc-model": "workspace:*",
     "@naruforge/narudoc-core": "workspace:*",
     "@naruforge/narudoc-renderer-html": "workspace:*",
     "@naruforge/narudoc-file-store": "workspace:*",
-    "@naruforge/narudoc-web": "workspace:*"
-  },
-  "bin": {
-    "narudoc": "./bin/narudoc.mjs"
+    "@naruforge/narudoc-editor-adapter": "workspace:*"
   }
 }

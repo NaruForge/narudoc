@@ -289,3 +289,7 @@ Core는 `getTable(doc, sectionId, index)`, `insertTable { sectionId, headers, ro
 Parser가 기록한 text range의 원문과 표시 text가 동일한 단일 줄 run만 편집한다. Escape/code/link 내부 및 mark 경계를 넘는 편집은 거부한다. 결과는 동일 inline 구조와 기존 validation을 통과해야 한다. 제어문자/잘못된 Unicode/구조 변경/빈 블록 결과는 저장하지 않는다. 기존 source의 최소 patch이며 BOM/EOL/무관한 mark/link 표기는 보존한다. 이 연산은 임의 source offset/raw patch 입력이 아니다. Text range 필드는 additive이고 현재 source를 다시 parse하여 사용한다.
 
 `setInlineText`의 `expected: ""`는 path가 지정한 inline index 앞의 의미적 gap 삽입이다(배열 길이는 끝). 삭제로 사라진 run의 undo도 같은 headless 연산으로 재현한다. Gap 위치는 parser의 inline node 범위에서 얻고 임의 offset은 받지 않는다. 링크/code 내부로 내려가는 path는 거부하며 결과 inline 구조가 유지되어야 한다.
+
+## 로컬 시각 편집 실행
+
+`pnpm narudoc edit FILE [--no-open] [--port N]`은 checkout의 지정 파일 하나에 대한 loopback editor를 시작한다. 기본 browser를 열고 실행별 인증 URL을 출력한다. `--json`은 `{ "url": "..." }`을 출력하며 프로세스는 서버를 유지한다. 기본 port는 0(자동), 허용값은 0..65535다. stdin/raw source/path browsing은 지원하지 않는다. 기존 headless 명령은 브라우저를 실행하지 않는다. 저장·충돌·제한 및 검증은 [로컬 편집기 문서](local-editor.md)를 따른다.
