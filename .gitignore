@@ -5,5 +5,4 @@ coverage/
 out.html
 *.narudoc.lock
 *.narudoc-tmp-*
-.task-output/
 .narudoc-scenarios/

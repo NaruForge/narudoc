@@ -75,6 +75,7 @@ try {
   run(['render', file, '--to', 'html', '--output', htmlPath]);
   const html = await readFile(htmlPath, 'utf8');
   assert.match(html, /420 V/);
+  assert.match(html, /<dt>status<\/dt><dd>reviewed<\/dd>/);
   assert.match(html, /href="#REQ-001"/);
   assert.match(html, /id="REQ-001"/);
   assert.match(html, /<h2 id="validation"/);
