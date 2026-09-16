@@ -2,6 +2,12 @@
 
 이 문서는 repository work와 중요한 architecture decision의 기록 위치, 원본, 운영 기준을 정한다. 일상 작업에는 이 문서와 GitHub native 기능을 사용한다. 외부 Blueprint, bootstrap Skill, 동기화 서비스는 필요하지 않다.
 
+## 일상 작업의 읽기 경로
+
+착수에는 [정보별 원본](#정보별-원본)과 [Work 승인 근거](#work-item-종류와-내용), 상태 변경에는 [Lifecycle](#lifecycle와-종료), 설계/PR에는 [ADR 판단·호환성](#설계pr에서-확인할-사항)을 읽는다. [원격 설정](#적용한-원격-설정과-변경-권한)과 [설치 이력](#설치-당시-확인한-기존-기록)은 해당 관리 작업에서만 참고한다. 이 경로는 기존 승인·설치 기록을 대체하거나 추가 승인을 요구하지 않는다.
+
+실행 가능한 입력·binding·문법·저장 경계가 바뀌면 관련 코드와 계약/예제/회귀를 같은 PR에 둔다. 검증 결과에는 대상 SHA와 로컬/CI/독립 reviewer/browser 자동/실제 사람·OS IME/skip·미실행을 구분한다. 구조 검사의 성공이나 문서 키워드 포함만으로 Agent 이해도·사람 사용성을 주장하지 않는다.
+
 ## Provider와 적용 범위
 
 - Work Item provider: **GitHub** 하나만 사용한다.

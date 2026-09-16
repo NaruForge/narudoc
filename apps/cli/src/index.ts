@@ -39,7 +39,7 @@ export async function main(args: string[]): Promise<number> {
     const positions = [...positionals];
     let command = positions.shift() ?? '';
     if (Object.keys(commands).some(name => name.startsWith(command + ' '))) command += ' ' + (positions.shift() ?? '');
-    const allowed = commands[command];
+    const allowed = Object.hasOwn(commands, command) ? commands[command] : undefined;
     if (!allowed) throw new NaruError('NARU_ARGUMENT', 'Unknown command; run narudoc --help.');
     for (const key of Object.keys(values)) if (!['json', ...Object.keys(allowed.options)].includes(key)) throw new NaruError('NARU_ARGUMENT', `--${key} is not valid for ${command}.`);
     if (command === 'capabilities') {
