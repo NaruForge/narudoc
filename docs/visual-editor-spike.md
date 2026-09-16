@@ -38,3 +38,9 @@ SourceSession의 source/engine snapshot이 원본이다. PM 문서, DOM과 selec
 검증된 단일 run 편집·projection·draft/valid 분리·Core operation replay 경로를 첫 로컬 client에 재사용할 수 있다. 모든 mark/escape/multiline/block 편집을 제공한다고 확대하지 않는다. #27은 파일 revision/save boundary와 구조 생성 UI를 이 adapter 밖에서 구현하고 server가 operations를 다시 검증한다. PM JSON이 source를 소유하도록 바꿀 필요가 없다. 실제 OS IME와 더 넓은 편집 범위는 남은 검증 위험이다. [Proposed ADR 0008](adr/0008-source-owned-editor-adapter.md)을 참고한다.
 
 삭제된 ordinary text run의 undo를 위해 `expected: ""`는 path index 바로 앞의 의미적 inline gap을 뜻한다(배열 length는 끝). Parser가 기록한 inline node range로 gap을 찾으며 raw offset을 받지 않는다. 삽입 결과는 동일 mark/link/code 구조와 전체 validation을 통과해야 한다. Adapter는 빈 gap도 sidecar로 매핑하고 history의 복구 삽입을 같은 연산으로 처리한다. 외부 snapshot replace는 별도 epoch를 바꾸므로 내용이 같은 블록도 명시적 projection 재생성 전까지 stale이다.
+
+## #31 세션 정비
+
+SourceSession은 DOM/PM import가 없는 공개 `@naruforge/narudoc-editor-adapter/session`으로 분리했다. Core의 공통 target 열거를 mount에 사용하고 구조 epoch가 달라지면 동일 내용의 문단도 오래된 view로 편집할 수 없다. 연속 typing journal은 정확한 source 재계획을 통과할 때만 축약한다. PM undo 기록은 별도로 유지한다.
+
+두 문단의 실제 PM selection/transaction/history 비교 proof는 `tests/proofs/session-topology.mjs`이며 `node --test tests/acceptance/session-topology.test.mjs`로 실행한다. 복합 gesture 실패·빈 draft·cross-paragraph selection을 확인했지만 제품 UI의 cross-block 편집을 출시한 것은 아니다. 다음 확장 방향과 비용 측정은 [Proposed ADR 0011](adr/0011-targets-and-source-session.md)을 따른다.

@@ -5,9 +5,9 @@ import { renderBlockHtml } from '@naruforge/narudoc-renderer-html';
 const $ = id => document.getElementById(id);
 const token = location.hash.slice(1) || sessionStorage.getItem('narudoc-token');
 if (location.hash) { sessionStorage.setItem('narudoc-token', token); history.replaceState(null, '', '/'); }
-let session, editors = [], savedSource = '', savedRevision = '', busy = false;
+let session, editors = [], busy = false;
 const report = message => { $('message').textContent = message; };
-const dirty = () => session && (session.source !== savedSource || session.drafts.size > 0);
+const dirty = () => session && (session.source !== session.baseSource || session.drafts.size > 0);
 async function api(route, input) {
   const response = await fetch('/api/' + route, { method: input ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + token, ...(input ? { 'Content-Type': 'application/json' } : {}) }, ...(input ? { body: JSON.stringify(input) } : {}) });
   const result = await response.json();
@@ -68,8 +68,8 @@ function project() {
 }
 function replace(source, rev) {
   session?.listeners.delete(update);
-  session = new SourceSession(source); session.listeners.add(update);
-  savedSource = source; savedRevision = rev; project();
+  session = new SourceSession(source, { revision: rev }); session.listeners.add(update);
+  project();
 }
 async function run(task) {
   busy = true; update(); report('');
@@ -78,7 +78,7 @@ async function run(task) {
 }
 $('save').addEventListener('click', () => run(async () => {
   if (!session.valid) throw Error('Resolve the draft before saving.');
-  const result = await api('save', { revision: savedRevision, operations: session.operations });
+  const result = await api('save', { revision: session.diskRevision, operations: session.operations });
   if (result.source !== session.source) throw Error('Server/client source mismatch. Draft retained; reload after checking disk.');
   replace(result.source, result.revision); report('Saved.');
 }));
@@ -87,7 +87,7 @@ $('reload').addEventListener('click', () => {
   void run(async () => { const result = await api('document'); $('file').textContent = result.file; replace(result.source, result.revision); });
 });
 $('export').addEventListener('click', () => run(async () => {
-  const result = await api('export', { revision: savedRevision, operations: session.operations });
+  const result = await api('export', { revision: session.diskRevision, operations: session.operations });
   report('HTML exported without overwriting existing files: ' + result.output);
 }));
 function form(id, operation) {
