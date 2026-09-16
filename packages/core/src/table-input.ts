@@ -24,7 +24,8 @@ export function readTableInput(value: unknown): TableInput {
 export function tableSource(input: TableInput, eol: string): string {
   const result = [input.headers, input.headers.map(() => '---'), ...input.rows].map(row => `| ${row.join(' | ')} |`).join(eol);
   const doc = parseDocument(`# Table {#table}${eol}${eol}${result}`), table = doc.blocks[1];
+  const expectedRows = [input.headers, ...input.rows];
   if (doc.diagnostics.length || doc.blocks.length !== 2 || table?.type !== 'table' || table.rows.length !== input.rows.length ||
-      [table.header, ...table.rows].some((row, i) => row.cells.length !== input.headers.length || row.cells.some((cell, j) => doc.source.slice(cell.contentRange.start, cell.contentRange.end) !== [input.headers, ...input.rows][i]![j]))) throw new NaruError('NARU_ARGUMENT', 'Cell syntax crosses table boundaries.');
+      [table.header, ...table.rows].some((row, i) => row.cells.length !== input.headers.length || row.cells.some((cell, j) => doc.source.slice(cell.contentRange.start, cell.contentRange.end) !== expectedRows[i]![j]))) throw new NaruError('NARU_ARGUMENT', 'Cell syntax crosses table boundaries.');
   return result;
 }

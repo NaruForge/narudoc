@@ -74,6 +74,9 @@ test('escaped pipe and code boundaries, references, rename and HTML safety', () 
   assert.match(html, /<tbody>/); assert.match(html, /&lt;script&gt;/); assert.doesNotMatch(html, /href="javascript:|<script>/);
   assert.throws(() => planOperation(doc, set('[bad](#missing)')), e => e.code === 'NARU_INVALID_DOCUMENT');
   assert.equal(getTable(parseDocument('# H {#h}\n| A\\\\| B |\n| --- | --- |'), 'h', 0).header.cells.length, 2);
+  const labelled = parseDocument('# H {#h}\n| [A\\|B](#h) |\n| --- |');
+  assert.match(renderHtml(labelled), />A\|B<\/a>/);
+  assert.equal(planOperation(labelled, { type: 'renameId', id: 'h', newId: 'new' }).next.source, '# H {#new}\n| [A\\|B](#new) |\n| --- |');
 });
 test('strict DTO/cell coordinates, invalid syntax and batch insert then edit', () => {
   const doc = parseDocument('# Parameters {#parameters}\n');
@@ -91,6 +94,13 @@ test('strict DTO/cell coordinates, invalid syntax and batch insert then edit', (
   assert.equal(getTable(dashRows.next, 'parameters', 0).rows.length, 2);
 });
 const root = fileURLToPath(new URL('../../', import.meta.url)), outputRoot = join(root, '.narudoc-scenarios');
+test('large bounded table creates every row without changing values', () => {
+  const rows = Array.from({ length: 20000 }, (_, i) => [String(i)]);
+  const plan = planOperation(parseDocument('# Parameters {#parameters}\n'), { type: 'insertTable', sectionId: 'parameters', headers: ['Index'], rows });
+  const table = getTable(plan.next, 'parameters', 0);
+  assert.equal(table.rows.length, rows.length);
+  assert.equal(inlineText(table.rows[19999].cells[0].inline), '19999');
+});
 const cli = (args, input) => spawnSync(process.execPath, [join(root, 'apps/cli/bin/narudoc.mjs'), ...args, '--json'], { encoding: 'utf8', input, timeout: 30000, maxBuffer: 20 * 1024 * 1024 });
 const ok = r => { assert.equal(r.status, 0, r.stderr || r.error?.message); return JSON.parse(r.stdout); };
 const fail = (r, code) => { assert.notEqual(r.status, 0); assert.equal(JSON.parse(r.stderr).error.code, code); };

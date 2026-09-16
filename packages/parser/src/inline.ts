@@ -38,7 +38,9 @@ export function parseInline(source: string, depth = 0, sourceOffset?: number, ta
         }
       }
       if (labelEnd > i + 1 && linkEnd !== -1) {
-        flush(); out.push({ type: 'link', url: source.slice(labelEnd + 2, linkEnd), children: [{ type: 'text', value: source.slice(i + 1, labelEnd) }],
+        const label = source.slice(i + 1, labelEnd);
+        const value = table ? label.replace(/(\\+)\|/g, (_, slashes: string) => (slashes.length % 2 ? slashes.slice(1) : slashes) + '|') : label;
+        flush(); out.push({ type: 'link', url: source.slice(labelEnd + 2, linkEnd), children: [{ type: 'text', value }],
           ...(sourceOffset === undefined ? {} : { urlRange: { start: sourceOffset + labelEnd + 2, end: sourceOffset + linkEnd } }) });
         i = linkEnd + 1; continue;
       }
