@@ -1,9 +1,10 @@
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { BatchOperationError, NaruError, type Operation, type TextEdit } from '@naruforge/narudoc-model';
-import { assertValid, createDocument, getById, getSection, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
+import { assertValid, createDocument, getById, getSection, outline, parseDocument, planBatch, planOperation, readDirectiveInput, validateDocument } from '@naruforge/narudoc-core';
 import { renderHtml } from '@naruforge/narudoc-renderer-html';
 import { assertDocumentSize, createFile, load, readStdin, revision, save } from './io.js';
+import { parseJsonInput } from './json.js';
 
 const HELP = `NaruDoc — headless structured documents
 
@@ -24,6 +25,7 @@ Write:
   narudoc paragraph replace FILE --id SECTION --index 0 --text TEXT
   narudoc paragraph insert FILE --id SECTION --index 0 --text TEXT
   narudoc directive set FILE --id ID --key KEY --value VALUE
+  narudoc directive insert FILE --section ID --from INPUT.json
   narudoc directive replace-paragraph FILE --id ID --index 0 --text TEXT
   narudoc id rename FILE --id OLD --new-id NEW
   narudoc batch FILE --operations PLAN.json --revision SHA256
@@ -46,6 +48,7 @@ const commands: Record<string, string[]> = {
   'paragraph replace': ['id', 'index', 'text', 'dry-run', 'revision'],
   'paragraph insert': ['id', 'index', 'text', 'dry-run', 'revision'],
   'directive set': ['id', 'key', 'value', 'dry-run', 'revision'],
+  'directive insert': ['section', 'from', 'dry-run', 'revision'],
   'directive replace-paragraph': ['id', 'index', 'text', 'dry-run', 'revision'],
 };
 function exitCode(error: NaruError): number {
@@ -70,6 +73,7 @@ export async function main(args: string[]): Promise<number> {
       index: { type: 'string' }, text: { type: 'string' }, key: { type: 'string' },
       value: { type: 'string' }, revision: { type: 'string' }, to: { type: 'string' }, output: { type: 'string' },
       operations: { type: 'string' },
+      section: { type: 'string' }, from: { type: 'string' },
       'new-id': { type: 'string' },
     } as const;
     const { values, positionals, tokens } = parseArgs({ args, options, allowPositionals: true, strict: true, tokens: true });
@@ -120,9 +124,7 @@ export async function main(args: string[]): Promise<number> {
       case 'batch': {
         const input = need('operations');
         const text = input === '-' ? await readStdin() : (await load(input)).source;
-        let request: unknown;
-        try { request = JSON.parse(text.replace(/^\uFEFF/, '')); }
-        catch { throw new NaruError('NARU_ARGUMENT', 'Batch plan must be valid JSON.'); }
+        const request = parseJsonInput(text);
         const plan = planBatch(doc, request);
         assertDocumentSize(plan.next.source);
         const changed = plan.next.source !== source;
@@ -164,6 +166,11 @@ export async function main(args: string[]): Promise<number> {
     }
     let operation: Operation;
     switch (command) {
+      case 'directive insert': {
+        const sectionId = need('section'), input = need('from');
+        const text = input === '-' ? await readStdin() : (await load(input)).source;
+        operation = { type: 'insertDirective', sectionId, ...readDirectiveInput(parseJsonInput(text)) }; break;
+      }
       case 'id rename': operation = { type: 'renameId', id: need('id'), newId: need('new-id') }; break;
       case 'heading set-title': operation = { type: 'setHeadingTitle', id: need('id'), title: need('title') }; break;
       case 'section insert': operation = { type: 'insertSection', id: need('id'), after: need('after'), title: need('title') }; break;

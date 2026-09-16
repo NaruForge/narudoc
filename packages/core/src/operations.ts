@@ -4,6 +4,7 @@ import { getById, getSection } from './query.js';
 import { assertValid } from './validation.js';
 import { applyTextEdits, minimalEdit } from './patch.js';
 import { internalReferences } from './references.js';
+import { directiveSource, readInsertDirective } from './directive-input.js';
 
 function scalar(value: string, label: string, empty = false): void {
   if (typeof value !== 'string' || !wellFormed(value) || /[\x00-\x1f\x7f]/.test(value) || value !== value.trim() || (!empty && !value)) throw new NaruError('NARU_ARGUMENT', `${label} must be a trimmed single-line string.`);
@@ -39,6 +40,16 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
   const source = doc.source;
   let edits: TextEdit[];
   switch (operation.type) {
+    case 'insertDirective': {
+      const input = readInsertDirective(operation);
+      const section = getSection(doc, input.sectionId);
+      if (doc.blocks.some(block => 'id' in block && block.id === input.id)) throw new NaruError('NARU_ARGUMENT', `ID already exists: ${input.id}`);
+      let end = doc.blocks.indexOf(section.heading) + 1;
+      while (end < doc.blocks.length && doc.blocks[end]!.type !== 'heading') end++;
+      const point = doc.blocks[end - 1]!.range.end, next = doc.blocks[end];
+      const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
+      edits = [{ start: point, end: point, expected: '', text: doc.eol.repeat(2) + directiveSource(input, doc.eol) + right }]; break;
+    }
     case 'renameId': {
       scalar(operation.newId, 'New ID');
       id(operation.newId);

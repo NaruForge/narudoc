@@ -1,0 +1,10 @@
+{
+  "name": "requirement",
+  "id": "REQ-DC-001",
+  "attributes": { "status": "draft" },
+  "children": [
+    { "type": "paragraph", "text": "The inverter shall regulate DC-link voltage. See [this requirement](#REQ-DC-001)." },
+    { "type": "list", "ordered": false, "items": ["Validate [control](#control).", "Record the result."] },
+    { "type": "code", "language": "text", "value": "[literal](#missing)\n:::literal\n```\n" }
+  ]
+}

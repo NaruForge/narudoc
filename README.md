@@ -18,6 +18,8 @@ NaruDoc의 본체는 사람이 읽는 `.narudoc` 원본과 편집기에 독립�
 
 Generic directive 본문에 여러 문단·평면 목록·코드 블록을 함께 담을 수 있다. [예제](examples/directive-blocks.narudoc)와 [문법·이행 안내](docs/format.md)를 참고한다. 0.0.2는 `body → children` 공개 모델/조회 JSON의 breaking change이며 기존 source를 새 parser로 재파싱해야 한다.
 
+[Generic directive 생성](docs/cli.md#generic-directive-생성)은 JSON 의미 객체로 요구사항·note 등을 새로 추가한다. 원문 문법을 직접 조립하지 않고 문단·목록·코드가 있는 객체를 생성한 뒤 기존 편집 명령으로 수정할 수 있다.
+
 [Directive 본문 문단 편집](docs/cli.md#directive-본문-문단-편집)은 ID와 문단 index로 요구사항 문장 등을 교체한다. 속성·다른 문단·목록·코드의 원문은 유지하며 CLI와 batch에서 같은 엔진을 사용한다.
 
 [ID 변경](docs/cli.md#id와-내부-참조-변경)은 정의와 같은 문서의 내부 링크를 함께 수정한다. 원문 전체에서 같은 문자열을 치환하지 않아 코드·외부 링크·무관한 텍스트를 유지한다.

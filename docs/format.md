@@ -46,6 +46,18 @@ ID는 `[A-Za-z][A-Za-z0-9._:-]*`이고 문서 내 유일하다. 문단마다 ID�
 
 ## 편집 의미
 
+`insertDirective`는 `sectionId`가 가리키는 heading의 직접 본문 끝(첫 하위/다음 heading 전)에 새 generic directive를 추가한다. 기존 마지막 직접 블록 뒤에 새 원문과 필요한 경계 개행만 삽입하며 기존 블록·공백·BOM·혼합 개행은 재작성하지 않는다. EOF에서는 기존 마지막 블록 뒤의 공백·개행이 새 directive 뒤에 남아 마지막 개행 유무를 유지한다. 이름에 따른 도메인 스키마는 없다. 새 ID는 필수이며 문서 내 유일해야 한다.
+
+입력은 source range가 없는 `DirectiveInput`/`DirectiveChildInput`이다. `name`, `id`, `attributes`, `children`을 모두 제공한다. 이름은 `[A-Za-z][A-Za-z0-9_-]*`, ID는 기존 규칙을 따른다. Attributes는 문자열 값의 객체이며 `id`·예약 key·알 수 없는 필드·잘못된 타입을 거부한다. 속성 값은 앞뒤 공백 없는 한 줄 문자열(빈 값 허용)이다. CLI JSON의 중복 key도 거부한다. Children은 빈 배열 또는 다음 객체의 배열이다.
+
+| type | 필드와 생성 규칙 |
+| --- | --- |
+| `paragraph` | `text`: directive 문맥에서 정확히 한 문단. Heading/metadata 모양은 literal이며 앞뒤 빈 줄·추가 블록·delimiter 주입은 거부한다. |
+| `list` | `ordered`: boolean, `items`: 비어 있지 않은 문자열 배열. 각 항목은 앞뒤 공백 없는 비어 있지 않은 한 줄이다. Unordered는 `-`, ordered는 연속 숫자와 `.`를 사용한다. Ordered에만 선택적 `start`(기본 1, 0 이상 안전한 정수)를 허용하며 마지막 번호까지 9자리 이하여야 한다. |
+| `code` | `value`: Unicode 문자열, 선택적 `language`: 앞뒤 공백·제어문자·backtick 없는 한 줄(기본 빈 문자열). 본문의 가장 긴 backtick 연속보다 긴 fence(최소 3개)를 사용한다. 비어 있지 않은 value가 개행으로 끝나지 않으면 닫는 fence를 위해 마지막 개행 하나를 추가한다. |
+
+새 입력의 개행은 문서의 첫 EOL(없으면 LF)로 맞춘다. Child 사이에 빈 줄을 넣고 생성한 각 child가 기존 parser에서 같은 종류의 블록 하나인지 확인한다. 전체 결과도 다시 parse/validate하여 자기 참조·기존 ID 참조를 확인하고 깨진 참조를 거부한다. 코드의 링크 모양 텍스트는 참조로 취급하지 않는다. 기존 파일/모델 문법이나 schemaVersion은 바꾸지 않으며 문서 migration은 없다. 같은 ID로 재실행하면 중복 오류이며 자동 중복 제거는 하지 않는다.
+
 `insertParagraph`는 섹션 heading ID와 문단 index로 문단 하나를 추가한다. 다음 heading 전까지의 직접 문단만 세며, directive 내부와 하위 섹션 문단은 제외한다. 직접 문단이 n개라면 0..n을 허용한다. index < n은 해당 문단 바로 앞, index == n은 직접 본문의 마지막 블록 뒤(첫 하위/다음 heading 전)에 추가한다. 문단이 없는 섹션은 0을 사용하며 목록·코드·directive가 있으면 그 뒤에 추가한다. 그러므로 index 0이 언제나 섹션의 첫 블록 앞을 뜻하지는 않는다.
 
 입력은 section 문단 교체와 같은 단일 문단 문법을 따른다. 빈 입력·앞뒤 빈 줄·여러 블록·heading/list/fence/directive 삽입은 거부하며 참조는 전체 결과에서 검증한다. 새 문단의 개행은 문서의 첫 개행 방식(없으면 LF)을 사용한다. 기존 원문은 삭제·교체하지 않고 문단과 필요한 경계 개행만 삽입한다. 양옆에 블록이 있으면 빈 줄을 확보하며 기존 공백 줄과 혼합 개행은 그대로 둔다. EOF에 추가할 때 기존 마지막 블록 뒤의 공백·개행은 새 문단 뒤에 남기므로 마지막 개행 유무도 유지한다. 같은 명령을 반복하면 문단이 다시 추가되며 중복 제거/no-op은 아니다.
