@@ -29,6 +29,30 @@ importers:
       '@naruforge/narudoc-core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@naruforge/narudoc-file-store':
+        specifier: workspace:*
+        version: link:../../packages/file-store
+      '@naruforge/narudoc-model':
+        specifier: workspace:*
+        version: link:../../packages/model
+      '@naruforge/narudoc-renderer-html':
+        specifier: workspace:*
+        version: link:../../packages/renderer-html
+      '@naruforge/narudoc-web':
+        specifier: workspace:*
+        version: link:../web
+
+  apps/web:
+    dependencies:
+      '@naruforge/narudoc-core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@naruforge/narudoc-editor-adapter':
+        specifier: workspace:*
+        version: link:../../packages/editor-adapter
+      '@naruforge/narudoc-file-store':
+        specifier: workspace:*
+        version: link:../../packages/file-store
       '@naruforge/narudoc-model':
         specifier: workspace:*
         version: link:../../packages/model
@@ -68,6 +92,12 @@ importers:
       prosemirror-view:
         specifier: 1.42.3
         version: 1.42.3
+
+  packages/file-store:
+    dependencies:
+      '@naruforge/narudoc-model':
+        specifier: workspace:*
+        version: link:../model
 
   packages/model: {}
 

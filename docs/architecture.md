@@ -14,7 +14,9 @@
 - parser → model.
 - core → model, parser.
 - renderer-html → model.
-- apps/cli → core, renderer-html 및 공통 타입.
+- file-store → model, Node 파일 I/O. CLI와 웹의 실제 저장 구현을 공유한다.
+- apps/web → core, renderer-html, file-store 및 공통 타입; browser bundle은 editor-adapter를 사용한다.
+- apps/cli → core, renderer-html, file-store 및 공통 타입. edit launcher만 apps/web을 사용한다.
 - editor-adapter → model, core, renderer-html, ProseMirror. DOM은 이 client adapter에만 있다.
 
 위 엔진 라이브러리는 Node I/O·DOM·editor·네트워크에 의존하지 않는다. renderer는 원본을 재파싱하거나 Core 편집 로직을 복제하지 않는다. CLI는 Core operation을 호출하며 문서를 독자적으로 편집하지 않는다.
@@ -39,7 +41,7 @@ ID 변경은 parser가 기록한 heading `idRange`, directive의 ID 속성 `valu
 
 `insertChildSection`은 Core의 전체 section 범위를 사용해 기존 자손 뒤에 삽입한다. 제목 level은 부모 + 1로 제한하고 새 ID/제목 및 전체 결과를 검증한다. 마지막 블록 끝의 삽입 patch 하나로 기존 원문과 trailing whitespace를 유지한다. CLI/batch는 같은 operation을 사용하며 기존 section 경계·patch·저장 계약 확장이므로 새 ADR을 추가하지 않는다.
 
-CLI는 엄격한 UTF-8 decoding, 원본 SHA-256 revision, 협조적 lock, 같은 폴더 임시 파일과 rename을 담당한다. 저장 직전에 원본 revision을 다시 확인한다. symlink·hardlink 파일 편집은 MVP에서 거부한다. 외부의 비협조적 writer에 대한 완전한 compare-and-swap이나 전원 장애 내구성은 보장하지 않는다. lock은 자동으로 빼앗거나 삭제하지 않는다.
+CLI와 웹이 공유하는 file-store는 엄격한 UTF-8 decoding, 원본 SHA-256 revision, 협조적 lock, 같은 폴더 임시 파일과 rename을 담당한다. 저장 직전에 원본 revision을 다시 확인한다. symlink·hardlink 파일 편집은 MVP에서 거부한다. 외부의 비협조적 writer에 대한 완전한 compare-and-swap이나 전원 장애 내구성은 보장하지 않는다. lock은 자동으로 빼앗거나 삭제하지 않는다.
 
 HTML은 텍스트·속성을 escape하고 위험 URL을 막는다. raw HTML·코드·directive를 실행하지 않는다. 렌더링은 네트워크·파일 읽기를 하지 않는다.
 
@@ -60,3 +62,5 @@ v0.0.3은 docs/format.md의 좁은 NaruDoc 문법만 구현하는 순수 TypeScr
 현재 방식을 유지할지 판단할 대안과 재검토 조건은 [제한 문법 parser ADR](adr/0003-bounded-parser.md)에 정리한다.
 
 표는 parser의 별도 bounded row scanner에서 escape/code를 구분하고 절대 셀 contentRange를 계산한다. Core는 DTO를 기존 parser로 확인하고 기존 section 삽입/최소 patch/순차 batch 경로를 사용한다. 참조 validation과 rename은 공통 순회에서 셀 inline을 처리하며 renderer는 재파싱하지 않는다. 모델/호환성 결정은 [Proposed ADR 0007](adr/0007-bounded-pipe-tables.md), 상세 문법은 [파일 계약](format.md)을 따른다.
+
+[단일 파일 로컬 편집기](local-editor.md)는 browser draft/유효 snapshot/저장 revision을 분리하고, 인증된 의미 연산을 서버에서 Core로 재계획한 뒤 공용 save를 한 번 호출한다. 엔진에는 HTTP·DOM을 넣지 않는다. 저장 경계와 보안 선택은 [Proposed ADR 0009](adr/0009-local-editor-save-boundary.md)를 참고한다.

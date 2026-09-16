@@ -4,13 +4,16 @@ worknaru-dev의 실행 프로그램/라이브러리 구분을 채택한다. npm 
 
 | 경로 | 책임 |
 | --- | --- |
-| apps/cli | 사용자 실행 프로그램, 인자·출력·파일 저장 |
+| apps/cli | 사용자 실행 프로그램, 인자·출력·공용 파일 저장 호출 |
+| apps/web | 지정 파일 한 개의 loopback HTTP service와 browser UI |
+| packages/file-store | CLI·웹 공용 Node UTF-8/revision/lock/atomic save |
 | packages/model | 원본 범위, 문서, inline, 진단, edit 계약 |
 | packages/parser | 지원 문법 파싱과 원본 범위 |
 | packages/core | 조회, validation, 의미 편집과 검증된 patch |
 | packages/renderer-html | 순수 모델 기반 안전한 HTML |
 | packages/editor-adapter | Source 소유형 브라우저 projection·transaction/draft adapter |
 | apps/editor-spike | 파일 저장 없는 인메모리 실행 harness |
+| tests/browser | Chromium adapter·로컬 client 실행 검증 |
 | tests/acceptance | 패키지 통합, CLI, 저장·원본 보존 회귀 |
 | tests/fixtures | 개행·Unicode·잘못된 문서 |
 | examples | 사용 가능한 공개 문서 예제 |
