@@ -25,3 +25,5 @@ Transaction에서 이전 유효 projection과 draft의 변경 범위를 구하�
 Editor를 제거해도 source와 headless operation이 독립적으로 남는다. UUID/DOM/PM state를 저장 형식으로 승격할 필요가 없다. 현재 위치 정보는 additive 공개 모델 변경이며 구 snapshot은 source 재파싱이 필요하다. 원문에 escape가 있는 run은 아직 안전한 문자별 역매핑을 제공하지 않아 읽기 전용이다. Mark 경계, block split/merge, 빈 문단으로의 삭제는 지원하지 않는다.
 
 History는 블록별 메모리 세션이며 영속/global 구조 편집 undo가 아니다. 실제 OS IME는 synthetic 이벤트와 다르므로 미확인 환경을 별도로 기록한다. 검증 결과와 #27 재사용 범위는 [spike 결과](../visual-editor-spike.md)를 따른다. 이 PR 병합은 ADR Accepted 전환이 아니다.
+
+Whole-run 삭제 후 history 복원을 위해 inline 사이의 gap도 semantic path로 표현한다. `expected: ""`를 쓰며 node range는 parser가 소유하고 결과 구조를 Core가 확인한다. 별도 raw undo patch나 editor JSON 저장은 사용하지 않는다. 외부 source 교체는 epoch로 모든 기존 mapping을 무효화한다.

@@ -287,3 +287,5 @@ Core는 `getTable(doc, sectionId, index)`, `insertTable { sectionId, headers, ro
 `text set` / Core·batch `setInlineText`는 화면 adapter와 같은 headless 연산이다. `kind`는 `heading`(index 0), `paragraph`(section ID/직접 문단 index), `directiveParagraph`(directive ID/본문 문단 index)다. `path`는 inspect의 inline 배열에서 text leaf까지의 0-based index를 점으로 연결한다(예: strong 안 text는 `1.0`). `expected`는 조회한 leaf의 전체 표시 text이고 `text`는 그 run의 새 text다. Revision은 기존 편집 공통 옵션이다. 잘못된 target/path는 대상/인자 오류, expected 불일치는 NARU_STALE이다.
 
 Parser가 기록한 text range의 원문과 표시 text가 동일한 단일 줄 run만 편집한다. Escape/code/link 내부 및 mark 경계를 넘는 편집은 거부한다. 결과는 동일 inline 구조와 기존 validation을 통과해야 한다. 제어문자/잘못된 Unicode/구조 변경/빈 블록 결과는 저장하지 않는다. 기존 source의 최소 patch이며 BOM/EOL/무관한 mark/link 표기는 보존한다. 이 연산은 임의 source offset/raw patch 입력이 아니다. Text range 필드는 additive이고 현재 source를 다시 parse하여 사용한다.
+
+`setInlineText`의 `expected: ""`는 path가 지정한 inline index 앞의 의미적 gap 삽입이다(배열 길이는 끝). 삭제로 사라진 run의 undo도 같은 headless 연산으로 재현한다. Gap 위치는 parser의 inline node 범위에서 얻고 임의 offset은 받지 않는다. 링크/code 내부로 내려가는 path는 거부하며 결과 inline 구조가 유지되어야 한다.

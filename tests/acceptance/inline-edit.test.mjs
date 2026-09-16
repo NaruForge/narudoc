@@ -31,6 +31,15 @@ test('inline protected boundaries, invalid results, stale text, delete, insert a
   assert.equal(planBatch(doc, { schemaVersion: 1, operations: [operation] }).next.source, original.replace('400', '420'));
   assert.equal(doc.source, original);
 });
+test('semantic inline gaps restore a deleted run without touching marks', () => {
+  const source = '# H {#h}\n\nA **bold** B';
+  const remove = { ...operation, id: 'h', path: '0', expected: 'A ', text: '' };
+  const deleted = planOperation(parseDocument(source), remove);
+  assert.equal(deleted.next.source, '# H {#h}\n\n**bold** B');
+  const restored = planOperation(deleted.next, { ...remove, expected: '', text: 'A ' });
+  assert.equal(restored.next.source, source);
+  assert.throws(() => planOperation(deleted.next, { ...remove, expected: '', text: '*markup*' }));
+});
 test('inline CLI and batch headless source matches API', async t => {
   const base = join(process.cwd(), '.narudoc-scenarios'); await mkdir(base, {recursive:true}); const dir = await mkdtemp(join(base,'inline-'));
   t.after(async()=> { assert.ok(dir.startsWith(base+sep)); await rm(dir,{recursive:true,force:true}); });

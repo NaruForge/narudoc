@@ -19,10 +19,12 @@ const schema = new Schema({
 interface Mapping { path: string; from: number; to: number; value: string }
 function projection(snapshot: DocumentSnapshot, target: TextTarget) {
   const mappings: Mapping[] = [];
+  const gaps: Mapping[] = [];
   let position = 1;
   function visit(nodes: Inline[], prefix = '', marks: Mark[] = []): PMNode[] {
-    return nodes.flatMap((node, index): PMNode[] => {
+    const result = nodes.flatMap((node, index): PMNode[] => {
       const path = prefix + index;
+      gaps.push({ path, from: position, to: position, value: '' });
       if (node.type === 'strong' || node.type === 'emphasis') return visit(node.children, path + '.', [...marks, schema.marks[node.type]!.create()]);
       if (node.type === 'text' && node.range && snapshot.source.slice(node.range.start, node.range.end) === node.value && !/[\r\n]/.test(node.value)) {
         mappings.push({ path, from: position, to: position + node.value.length, value: node.value });
@@ -32,15 +34,18 @@ function projection(snapshot: DocumentSnapshot, target: TextTarget) {
       position++;
       return [schema.nodes.protected!.create({ label: inlineText([node]), kind: node.type }, null, marks)];
     });
+    gaps.push({ path: prefix + nodes.length, from: position, to: position, value: '' });
+    return result;
   }
   const content = visit(textTarget(snapshot, target).inline);
-  return { doc: schema.nodes.doc!.create(null, schema.nodes.paragraph!.create(null, content)), mappings };
+  return { doc: schema.nodes.doc!.create(null, schema.nodes.paragraph!.create(null, content)), mappings: [...mappings, ...gaps] };
 }
 
 /** Source is canonical. Operations are retained for a host to replay through Core at save time. */
 export class SourceSession {
   snapshot: DocumentSnapshot;
   generation = 0;
+  epoch = 0;
   operations: Operation[] = [];
   listeners = new Set<() => void>();
   drafts = new Map<string, string>();
@@ -55,7 +60,7 @@ export class SourceSession {
     this.generation++;
     this.notify();
   }
-  replace(source: string) { this.snapshot = parseDocument(source); this.operations = []; this.generation++; this.notify(); }
+  replace(source: string) { this.snapshot = parseDocument(source); this.operations = []; this.generation++; this.epoch++; this.notify(); }
   notify() { for (const listener of this.listeners) listener(); }
 }
 
@@ -63,13 +68,14 @@ export class BlockEditor {
   view: EditorView;
   private baseline: ReturnType<typeof projection>;
   private generation: number;
+  private epoch: number;
   private composing = false;
   private committing = false;
   private destroyed = false;
   readonly key: string;
   private unsubscribe: () => void;
   constructor(readonly session: SourceSession, readonly target: TextTarget, host: HTMLElement, readonly report: (message: string) => void) {
-    this.key = JSON.stringify(target); this.generation = session.generation;
+    this.key = JSON.stringify(target); this.generation = session.generation; this.epoch = session.epoch;
     this.baseline = projection(session.snapshot, target);
     this.view = new EditorView(host, {
       state: EditorState.create({ schema, doc: this.baseline.doc, plugins: [history()] }),
@@ -95,6 +101,7 @@ export class BlockEditor {
     });
     const listener = () => {
       if (this.committing || this.composing || this.session.drafts.has(this.key)) return;
+      if (this.epoch !== session.epoch) { this.report('Snapshot replaced; editor mapping is stale. Reload the projection explicitly.'); return; }
       try {
         const next = projection(session.snapshot, target);
         // Other blocks may move source ranges; only unchanged projections may rebind.
@@ -121,14 +128,22 @@ export class BlockEditor {
       // findDiffEnd can overlap start for pure insertion/deletion.
       const overlap = Math.max(0, from - Math.min(end.a, end.b));
       const oldEnd = end.a + overlap, newEnd = end.b + overlap;
-      const mapping = this.baseline.mappings.find(m => from >= m.from && oldEnd <= m.to);
-      if (!mapping) throw new NaruError('NARU_ARGUMENT', 'Protected inline or markup boundary edit is unsupported.');
+      const mappings = this.baseline.mappings.filter(m => from >= m.from && oldEnd <= m.to);
+      if (!mappings.length) throw new NaruError('NARU_ARGUMENT', 'Protected inline or markup boundary edit is unsupported.');
       const inserted = draft.textBetween(from, newEnd, '\n', '\uFFFC');
-      const text = mapping.value.slice(0, from - mapping.from) + inserted + mapping.value.slice(oldEnd - mapping.from);
-      const op: Operation = { type: 'setInlineText', ...this.target, path: mapping.path, expected: mapping.value, text };
-      const candidate = planOperation(this.session.snapshot, op);
-      const projected = projection(candidate.next, this.target);
-      if (!projected.doc.eq(draft)) throw new NaruError('NARU_ARGUMENT', 'Only ordinary text edits inside one inline run are supported.');
+      let accepted: { op: Operation; projected: ReturnType<typeof projection> } | undefined;
+      let failure: unknown;
+      for (const mapping of mappings) {
+        try {
+          const text = mapping.value.slice(0, from - mapping.from) + inserted + mapping.value.slice(oldEnd - mapping.from);
+          const op: Operation = { type: 'setInlineText', ...this.target, path: mapping.path, expected: mapping.value, text };
+          const candidate = planOperation(this.session.snapshot, op);
+          const projected = projection(candidate.next, this.target);
+          if (projected.doc.eq(draft)) { accepted = { op, projected }; break; }
+        } catch (error) { failure = error; }
+      }
+      if (!accepted) throw failure ?? new NaruError('NARU_ARGUMENT', 'Only ordinary text edits inside one inline run are supported.');
+      const { op, projected } = accepted;
       this.committing = true;
       this.session.apply(op, this.generation);
       this.baseline = projected; this.generation = this.session.generation;

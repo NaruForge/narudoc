@@ -99,3 +99,5 @@ ID 변경은 `renameId`로 정의와 같은 문서 내부 참조를 함께 수�
 Parser의 ordinary text Inline에는 선택적 절대 `range`가 추가된다. `parseInline`에 sourceOffset을 제공할 때 기록하며 기존 link urlRange는 유지한다. Escape를 해석한 text는 range 길이와 표시 길이가 다를 수 있으므로 직접 offset mapping을 가정하면 안 된다. Source를 재파싱해 최신 범위를 사용한다.
 
 `setInlineText`는 [CLI 계약](cli.md#일반-inline-text-편집)의 semantic target/path/expected로 단일 text run을 고른다. 원문과 표시 text가 동일한 run에서만 최소 patch를 허용한다. 결과 inline 구조와 전체 validation을 확인하므로 markup/블록/ID를 몰래 바꾸지 못한다. 지원 범위 밖 escape/multiline/link/code는 보호한다. 별도 visual 전용 문서 규칙은 없다.
+
+Inline node의 선택적 `range`는 code/strong/emphasis/link의 바깥 문법 경계에도 기록한다. 이 범위는 일반 text가 삭제된 자리의 의미적 gap 삽입을 위한 것이며 node 자체의 raw 편집 허가는 아니다. `expected: ""`의 gap 삽입도 동일한 결과 구조·참조 검증을 거친다.

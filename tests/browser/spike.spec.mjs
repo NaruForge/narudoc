@@ -4,12 +4,14 @@ import { planOperation, parseDocument } from '../../packages/core/dist/index.js'
 const original = await readFile(new URL('../../examples/visual-fidelity.narudoc', import.meta.url),'utf8');
 const box = page => page.getByRole('textbox',{name:'paragraph control 0',exact:true});
 async function selectText(page, text) {
-  await box(page).focus();
-  await box(page).evaluate((el,text)=>{
-    const walker = document.createTreeWalker(el,NodeFilter.SHOW_TEXT); let node;
-    while ((node=walker.nextNode())) { const start=node.textContent.indexOf(text); if(start<0) continue; const range=document.createRange();range.setStart(node,start);range.setEnd(node,start+text.length);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);return; }
-    throw Error('Text not found');
-  },text);
+  const target = box(page), value = await target.textContent();
+  const offset = value.indexOf(text);
+  expect(offset).toBeGreaterThanOrEqual(0);
+  await target.focus();
+  await page.keyboard.press('Control+Home');
+  for (let i = 0; i < offset; i++) await page.keyboard.press('ArrowRight');
+  for (let i = 0; i < text.length; i++) await page.keyboard.press('Shift+ArrowRight');
+  await expect.poll(() => page.evaluate(() => getSelection().toString())).toBe(text);
 }
 const source = page => page.evaluate(()=>window.spike.session.source);
 test.beforeEach(async({page})=>{await page.goto('/');await expect(box(page)).toBeVisible();});
@@ -65,5 +67,21 @@ test('BOM/EOL/EOF no-op and stale mapping draft retention',async({page})=>{
   await selectText(page,'400');await box(page).dispatchEvent('compositionstart',{data:''});await page.keyboard.insertText('draft');
   await page.evaluate(()=>window.spike.session.replace(window.spike.session.source.replace('400','430')));
   await box(page).dispatchEvent('compositionend',{data:'draft'});
-  await expect(page.getByRole('alert')).toContainText('Stale');expect(await source(page)).toBe(original.replace('400','430'));expect(await box(page).textContent()).toContain('draft');
+  await expect(page.getByRole('alert')).toContainText(/stale/i);expect(await source(page)).toBe(original.replace('400','430'));expect(await box(page).textContent()).toContain('draft');
+});
+test('external replacement invalidates even unchanged block mappings',async({page})=>{
+  await selectText(page,'400');
+  await page.evaluate(()=>window.spike.session.replace(window.spike.session.source.replace('Keep this','Keep that')));
+  await page.keyboard.type('420');
+  await expect(page.getByRole('alert')).toContainText(/stale/i);
+  expect(await source(page)).toBe(original.replace('Keep this','Keep that'));
+  expect(await box(page).textContent()).toContain('420');
+});
+test('whole ordinary run deletion and undo/redo restore exact source',async({page})=>{
+  const fixture='# H {#h}\n\nA **bold** B';
+  await page.evaluate(s=>window.spike.mount(s),fixture);
+  await page.evaluate(()=> {const e=window.spike.editors[1];e.view.focus();e.view.dispatch(e.view.state.tr.delete(1,3));});
+  await expect.poll(()=>source(page)).toBe('# H {#h}\n\n**bold** B');
+  await page.keyboard.press('Control+z');await expect.poll(()=>source(page)).toBe(fixture);
+  await page.keyboard.press('Control+y');await expect.poll(()=>source(page)).toBe('# H {#h}\n\n**bold** B');
 });

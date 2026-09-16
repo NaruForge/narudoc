@@ -36,3 +36,5 @@ SourceSession의 source/engine snapshot이 원본이다. PM 문서, DOM과 selec
 ## #27 재사용 판단
 
 검증된 단일 run 편집·projection·draft/valid 분리·Core operation replay 경로를 첫 로컬 client에 재사용할 수 있다. 모든 mark/escape/multiline/block 편집을 제공한다고 확대하지 않는다. #27은 파일 revision/save boundary와 구조 생성 UI를 이 adapter 밖에서 구현하고 server가 operations를 다시 검증한다. PM JSON이 source를 소유하도록 바꿀 필요가 없다. 실제 OS IME와 더 넓은 편집 범위는 남은 검증 위험이다. [Proposed ADR 0008](adr/0008-source-owned-editor-adapter.md)을 참고한다.
+
+삭제된 ordinary text run의 undo를 위해 `expected: ""`는 path index 바로 앞의 의미적 inline gap을 뜻한다(배열 length는 끝). Parser가 기록한 inline node range로 gap을 찾으며 raw offset을 받지 않는다. 삽입 결과는 동일 mark/link/code 구조와 전체 validation을 통과해야 한다. Adapter는 빈 gap도 sidecar로 매핑하고 history의 복구 삽입을 같은 연산으로 처리한다. 외부 snapshot replace는 별도 epoch를 바꾸므로 내용이 같은 블록도 명시적 projection 재생성 전까지 stale이다.
