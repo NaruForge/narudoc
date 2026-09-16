@@ -18,6 +18,8 @@ UTF-8 파일 → 원본 string + 위치를 가진 semantic model → operation �
 
 Edit 범위는 UTF-16 code unit의 반열린 구간 [start, end)이다. 변경 대상의 expected text를 확인하고 중첩·범위 오류·surrogate 분할을 거부한다. 전체 snapshot이 바뀌면 plan을 재사용하지 않는다. 제목·문단·속성은 공통 접두·접미사를 보존하며, 섹션 이동은 원본 slice를 이동한다.
 
+`planBatch`는 기존 operation을 메모리에서 순서대로 계획하고 매 단계 재파싱·검증한다. 각 단계 edits는 해당 단계 입력 snapshot에 속하며 최초 원문의 patch로 합치지 않는다. CLI는 초기 revision과 최종 크기를 확인하고 전체 성공 시 기존 save를 한 번 호출한다. 실패한 중간 결과는 저장하지 않는다. 입력/응답은 [CLI 계약](cli.md), 선택 근거와 대안은 [순차 배치 ADR](adr/0005-sequential-batch-edits.md)에 있다.
+
 유지 제안의 대안과 결과: [원본 보존 편집 방식](adr/0001-source-preserving-edits.md), [위치 단위](adr/0002-offset-encoding.md).
 
 ## 저장과 안전

@@ -85,6 +85,33 @@ try {
     '--', join(output, 'before.narudoc'), file], { encoding: 'utf8', timeout: 10000 });
   assert.equal(diff.status, 1, diff.stderr || diff.error?.message);
   await writeFile(join(output, 'changes.diff'), diff.stdout);
+
+  // The same request can now be planned and saved as one batch.
+  const batchFile = join(output, 'batch.narudoc');
+  await writeFile(batchFile, original);
+  const batchRevision = run(['inspect', batchFile]).revision;
+  const batchArgs = ['batch', batchFile, '--operations', join(root, 'examples/engineering-edit.json'), '--revision', batchRevision];
+  const batchPreview = run([...batchArgs, '--dry-run']);
+  assert.deepEqual(await readFile(batchFile), original);
+  const batchSaved = run(batchArgs);
+  assert.equal(batchSaved.nextRevision, batchPreview.nextRevision);
+  assert.deepEqual(batchSaved.steps, batchPreview.steps);
+  assert.deepEqual(await readFile(batchFile), await readFile(file));
+  assert.equal(run(['validate', batchFile]).valid, true);
+  const batchHtmlPath = join(output, 'batch.html');
+  run(['render', batchFile, '--to', 'html', '--output', batchHtmlPath]);
+  assert.equal(await readFile(batchHtmlPath, 'utf8'), html);
+
+  const rejectedFile = join(output, 'rejected-batch.narudoc');
+  const rejectedPlanFile = join(output, 'rejected-plan.json');
+  await writeFile(rejectedFile, original);
+  const rejectedPlan = JSON.parse(await readFile(join(root, 'examples/engineering-edit.json'), 'utf8'));
+  rejectedPlan.operations.push({ type: 'removeSection', id: 'missing' });
+  await writeFile(rejectedPlanFile, JSON.stringify(rejectedPlan));
+  const rejected = run(['batch', rejectedFile, '--operations', rejectedPlanFile, '--revision', batchRevision], 2);
+  assert.equal(rejected.error.code, 'NARU_TARGET');
+  assert.equal(rejected.error.operationIndex, 3);
+  assert.deepEqual(await readFile(rejectedFile), original);
   assert.deepEqual(await readFile(join(root, 'examples/engineering.narudoc')), original);
   console.log(`PASS: authoring scenario; artifacts: ${output}`);
 } finally {

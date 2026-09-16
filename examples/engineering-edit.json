@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "operations": [
+    { "type": "replaceParagraph", "id": "dc-link-control", "index": 0, "text": "The target voltage is 420 V." },
+    { "type": "setDirectiveAttribute", "id": "REQ-001", "key": "status", "value": "reviewed" },
+    { "type": "moveSection", "id": "dc-link-control", "after": "validation" }
+  ]
+}

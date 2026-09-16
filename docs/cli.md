@@ -22,8 +22,9 @@
 | `section move FILE --id ID --after ID` | 편집 공통 옵션 | 같은 부모·같은 level의 섹션 이동 |
 | `paragraph replace FILE --id SECTION --index 0 --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 자식 문단 교체; index는 0부터 시작 |
 | `directive set FILE --id ID --key KEY --value VALUE` | 편집 공통 옵션 | 속성 추가·변경; ID 변경 제외 |
+| `batch FILE --operations PLAN --revision SHA256` | `--dry-run` | 단일 문서의 의미 편집 목록을 순차 검증 후 한 번 저장 |
 
-편집 공통 옵션은 `--dry-run`, `--revision SHA256`이다. 둘 다 기존 문서 편집 6종에서만 지원하며 읽기 명령과 `new`에서는 지원하지 않는다. `--revision`은 선택 옵션이지만 조회 후 변경하는 자동화에서는 사용한다.
+편집 공통 옵션은 `--dry-run`, `--revision SHA256`이다. 기존 문서 편집 6종과 `batch`에서 지원하며 읽기 명령과 `new`에서는 지원하지 않는다. 개별 편집의 `--revision`은 선택 옵션이지만 조회 후 변경하는 자동화에서는 사용한다. `batch`에서는 필수다.
 
 읽기 명령은 `FILE` 대신 `-` 또는 `--stdin`을 사용할 수 있다. 기존 문서 편집과 `new`는 실제 파일 경로가 필요하다. `--to`는 `html`만 지원한다. `new`와 `render --output`은 기존 파일을 덮어쓰지 않는다.
 
@@ -47,7 +48,8 @@
 | `get --json` | `node`: ID를 가진 block, `source`: 원문. Heading의 `node.range`는 제목 줄이며 `source`는 하위 내용을 포함하는 섹션 원문이다. |
 | `validate --json` | `valid`: error 진단이 없으면 true, `diagnostics`: 진단 배열 |
 | `render --json` | stdout 출력이면 `html`: HTML 문자열, `--output`이면 `output`: 출력 경로 문자열 |
-| 기존 문서 편집 `--json` | `dryRun`, `changed`: boolean, `nextRevision`: 결과 SHA-256, `edits`: TextEdit 배열, `diagnostics`: 편집 결과 진단 |
+| 기존 문서의 개별 편집 `--json` | `dryRun`, `changed`: boolean, `nextRevision`: 결과 SHA-256, `edits`: TextEdit 배열, `diagnostics`: 편집 결과 진단 |
+| `batch --json` | `dryRun`, `changed`, `nextRevision`, `diagnostics`와 `steps`: `{ operationIndex, edits }` 배열. 최상위 `edits`는 없다. |
 
 `new --json`은 `schemaVersion`, `file`, `revision`만 반환하며 `offsetEncoding`은 없다. 도움말·버전과 실행 예외도 별도의 형태다. 모든 JSON이 같은 envelope라고 가정하지 않는다.
 
@@ -68,7 +70,7 @@ Range는 `{ start, end }`이고 UTF-16 code unit 기준 `[start, end)`이다. �
 | 실행 예외, `--json` | 없음 | 아래 error JSON | 아래 분류 |
 | 실행 예외, 텍스트 모드 | 없음 | 오류 코드·메시지·진단 텍스트 | 아래 분류 |
 
-실행 예외의 JSON 형태는 다음과 같다. 아래는 잘못된 ID로 실행했을 때의 형태 예시이며 message는 고정된 파싱 계약으로 사용하지 않는다.
+실행 예외의 JSON 형태는 다음과 같다. 아래는 잘못된 ID로 실행했을 때의 형태 예시이며 message는 고정된 파싱 계약으로 사용하지 않는다. 배치의 특정 작업에서 실패하면 `error.operationIndex`가 추가된다. 계획 전체의 형식 오류, 초기 문서 오류, 파일 I/O·revision·최종 크기·저장 실패에는 이 필드가 없다.
 
 ```json
 {"schemaVersion":1,"error":{"code":"NARU_TARGET","message":"Expected one target for ID missing; found 0.","diagnostics":[]}}
@@ -87,13 +89,53 @@ Range는 `{ start, end }`이고 UTF-16 code unit 기준 `[start, end)`이다. �
 
 ## Revision과 dry-run
 
-기존 문서 편집 응답의 `revision`은 편집 전 원본이다. `nextRevision`은 dry-run에서는 예상 결과, 실제 저장 성공 시에는 그 편집 결과의 revision이다. 다른 writer가 그 뒤에 파일을 바꾸지 않는다는 보장은 아니다. No-op이면 `changed: false`, `edits: []`이고 두 revision이 같다.
+기존 문서 편집 응답의 `revision`은 편집 전 원본이다. `nextRevision`은 dry-run에서는 예상 결과, 실제 저장 성공 시에는 그 편집 결과의 revision이다. 다른 writer가 그 뒤에 파일을 바꾸지 않는다는 보장은 아니다. 개별 편집의 no-op이면 `changed: false`, `edits: []`이고 두 revision이 같다. 배치의 변경 상쇄와 단계별 edits는 아래 계약을 따른다.
 
 `--revision`은 조회했던 원본과 현재 읽은 원본이 다르면 편집을 거부한다. 실제 저장도 별도 원본 검사를 수행하지만 완전한 파일 시스템 CAS를 보장하지 않는다. 충돌 시 다시 조회하고 변경 의도를 재검토한 뒤 새 revision으로 작업한다. 기존 lock을 자동 삭제해서 재시도하지 않는다.
 
 Dry-run은 문서를 읽고 지정한 revision·대상·편집 결과의 유효성과 크기 등을 검사한다. 원본을 쓰지 않고 저장 잠금을 얻지 않으며 저장 직전 재검사나 실제 쓰기 가능 여부도 확인하지 않는다. 따라서 기존 lock이 있어도 dry-run은 성공하고 실제 변경은 잠금 충돌로 실패할 수 있다. 예상 `nextRevision`은 저장 성공을 예약하거나 동시 변경을 막는 토큰이 아니다.
 
 텍스트 preview의 `@@ UTF-16 start:end @@`와 JSON 문자열로 표시한 `-`/`+`는 사람이 검토할 표시다. `git apply`에 넣는 unified patch가 아니다. 실제 편집은 검토한 의미 명령을 원본 revision과 함께 다시 실행한다.
+
+## 단일 문서 배치 편집
+
+`batch FILE --operations PLAN --revision SHA256`은 한 파일에 기존 6종 편집을 목록 순서대로 적용한다. `PLAN`은 JSON 파일 경로이며 `--operations -`이면 stdin에서 계획을 읽는다. 대상 문서 `FILE`은 실제 파일이어야 한다. `--stdin`은 받지 않는다. 계획 파일에는 문서 파일과 같은 symlink/hardlink 제한을 적용한다.
+
+입력은 아래처럼 `schemaVersion: 1`과 `operations` 두 필드만 갖는다. 계획의 UTF-8 크기 한도는 BOM 포함 10 MiB이며 선두 BOM은 허용한다. 작업 수는 1~100개다. 알 수 없는 버전·필드·타입·누락 필드와 잘못된 JSON은 `NARU_ARGUMENT` / 종료 코드 2다. 인코딩 오류는 3, 크기 초과는 5다.
+
+```json
+{
+  "schemaVersion": 1,
+  "operations": [
+    { "type": "replaceParagraph", "id": "dc-link-control", "index": 0, "text": "The target voltage is 420 V." },
+    { "type": "setDirectiveAttribute", "id": "REQ-001", "key": "status", "value": "reviewed" },
+    { "type": "moveSection", "id": "dc-link-control", "after": "validation" }
+  ]
+}
+```
+
+계획의 각 작업은 아래 필드를 정확히 가진다. `type`과 `index`를 제외한 값은 모두 올바른 Unicode 문자열이다. `index`는 0 이상의 안전한 정수다. 의미 제약은 해당 개별 편집과 같다.
+
+| type | type 외 필수 필드 |
+| --- | --- |
+| `setHeadingTitle` | `id`, `title` |
+| `insertSection` | `after`, `id`, `title` |
+| `removeSection` | `id` |
+| `moveSection` | `id`, `after` |
+| `replaceParagraph` | `id`, `index`, `text` |
+| `setDirectiveAttribute` | `id`, `key`, `value` |
+
+`--revision`은 조회한 원본의 64자리 소문자 SHA-256으로 필수다. 순차 적용 도중 revision을 갱신하는 옵션은 없다. 처음 조회한 파일 snapshot을 저장 시에도 재확인한다.
+
+각 단계는 앞선 단계 결과를 대상으로 한다. 앞서 삽입한 섹션을 다음 단계에서 수정할 수 있다. 초기 문서와 **모든 중간 결과**가 유효해야 하므로, 중간에 깨진 참조를 만들고 마지막에 복구하는 계획은 거부한다. 최종 문서의 UTF-8 크기를 검사하고, 모두 성공해야 기존 저장 경로를 한 번 호출한다. 계획 검증·크기 검사·충돌 검사가 실패하면 부분 결과를 저장하지 않는다. 자동 재시도는 하지 않는다.
+
+성공 응답의 `steps`에는 `{ operationIndex, edits }`가 작업 순서대로 포함된다. `operationIndex`는 0부터 시작한다. 첫 단계의 edits는 최초 원문, 이후 단계는 직전 단계 적용 결과의 UTF-16 범위를 사용한다. **서로 다른 단계의 edits를 합쳐 최초 원문에 적용하면 안 된다.** 텍스트 dry-run도 각 단계 번호와 해당 단계 입력 기준 범위를 표시한다. 최상위 `changed`는 최초/최종 원문 비교다. 변경이 상쇄되면 `changed: false`이며 revision은 같지만 단계별 edits는 비어 있지 않을 수 있다.
+
+특정 작업 실패 시 stderr error JSON은 기존 오류 코드와 `operationIndex`를 제공한다. 예를 들어 두 번째 작업의 대상이 없으면 `error.code: "NARU_TARGET"`, `error.operationIndex: 1`, 종료 코드 2다. 이때 stdout에는 부분 성공 결과를 출력하지 않는다. 진단 범위는 실패한 단계가 검사한 메모리 snapshot 기준이며 디스크 원문에 바로 적용할 수 없다. 실패한 계획은 저장되지 않는다.
+
+Dry-run은 저장·잠금·쓰기 권한을 확인하지 않는다. 실제 저장은 기존 협조적 lock/revision/rename의 보장 범위를 유지한다. 비협조적 외부 writer에 대한 완전한 CAS, 전원 장애 내구성, 여러 파일의 transaction은 제공하지 않는다. rename 이후 정리 작업이 실패한 I/O 오류는 이미 최종 내용이 저장되었을 수 있으므로 재조회해야 한다.
+
+재현 예제는 [engineering-edit.json](../examples/engineering-edit.json), 실행 시나리오는 [기술 문서 검증](authoring-scenario.md)이다. 선택 근거는 [ADR 0005](adr/0005-sequential-batch-edits.md)에 기록한다. 기존 개별 명령의 응답은 바뀌지 않으며 문서 마이그레이션은 필요 없다.
 
 ## 파일 제약
 

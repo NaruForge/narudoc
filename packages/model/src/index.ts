@@ -31,9 +31,19 @@ export type Operation =
   | { type: 'replaceParagraph'; id: string; index: number; text: string }
   | { type: 'setDirectiveAttribute'; id: string; key: string; value: string };
 export interface EditPlan { baseSource: string; edits: TextEdit[]; next: DocumentSnapshot }
+export interface BatchRequest { schemaVersion: 1; operations: Operation[] }
+/** Each step's edits use the source produced by the preceding step. */
+export interface BatchStep { operationIndex: number; edits: TextEdit[] }
+export interface BatchEditPlan { baseSource: string; steps: BatchStep[]; next: DocumentSnapshot }
 export class NaruError extends Error {
   constructor(public readonly code: string, message: string, public readonly diagnostics: Diagnostic[] = []) {
     super(message); this.name = 'NaruError';
+  }
+}
+export class BatchOperationError extends NaruError {
+  constructor(public readonly operationIndex: number, cause: NaruError) {
+    super(cause.code, `Operation ${operationIndex}: ${cause.message}`, cause.diagnostics);
+    this.name = 'BatchOperationError';
   }
 }
 export const ID_PATTERN = /^[A-Za-z][A-Za-z0-9._:-]*$/;
