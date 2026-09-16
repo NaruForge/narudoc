@@ -42,6 +42,8 @@ HTML은 텍스트·속성을 escape하고 위험 URL을 막는다. raw HTML·코
 
 ## 파서 선택
 
+새 directive 생성은 parsed model과 분리된 authoring DTO를 `core/directive-input.ts`에서 검사하고 새 객체만 직렬화한다. 각 child를 directive 문맥에서 기존 parser로 확인한 뒤 섹션 직접 본문의 마지막 블록 끝에 삽입 patch를 만든다. 기존 문서 전체를 직렬화하지 않는다. 코드 fence 길이는 본문과 충돌하지 않도록 정하며 최종 문서의 참조 검증과 CLI 저장은 기존 경로를 사용한다. CLI는 JSON 문법·중복 key를 검사하고 Core가 field/type·의미 검증을 소유한다. 신규 문법/범용 serialization engine/schemaVersion 도입이 아닌 기존 계약 확장이므로 새 ADR을 추가하지 않는다.
+
 Directive의 본문은 `Paragraph | List | Code` 자식만 가진다. Top-level과 본문은 같은 원문 line table에서 문단·목록·fence scanner를 공유하므로 자식 범위도 전체 문서 UTF-16 위치다. 본문의 heading·metadata는 문단 텍스트이며 재귀 directive는 허용하지 않는다. 코드 scanner가 fence 끝까지 소비한 뒤 directive delimiter를 검사한다. `DocumentSnapshot.blocks`는 최상위만 보유한다.
 
 Core validation과 rename은 같은 순회에서 자식 문단·목록의 실제 링크를 한 번씩 처리하며 code는 제외한다. Renderer는 재파싱 없이 자식을 각각 `<p>`, `<ul>/<ol>`, `<pre><code>`로 투영한다. Section 문단 index와 속성·섹션 원문 편집 계약은 유지한다. `body → children` 공개 모델 변경과 제한된 자식 경계의 대안은 [ADR 0006](adr/0006-directive-body-blocks.md)에 제안한다. 이행과 본문 해석 변경은 [문법 계약](format.md)에 명시한다.

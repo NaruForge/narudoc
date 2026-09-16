@@ -23,6 +23,7 @@
 | `paragraph replace FILE --id SECTION --index 0 --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 자식 문단 교체; index는 0부터 시작 |
 | `paragraph insert FILE --id SECTION --index N --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 문단 앞 또는 본문 끝에 문단 하나 삽입 |
 | `directive set FILE --id ID --key KEY --value VALUE` | 편집 공통 옵션 | 속성 추가·변경; ID 변경 제외 |
+| `directive insert FILE --section ID --from INPUT` | 편집 공통 옵션 | Semantic JSON으로 새 directive 생성; INPUT은 파일 또는 `-` |
 | `directive replace-paragraph FILE --id ID --index N --text TEXT` | 편집 공통 옵션 | Directive 본문의 N번째 문단 교체; 목록·코드는 세지 않음 |
 | `id rename FILE --id OLD --new-id NEW` | 편집 공통 옵션 | ID 정의와 같은 문서 내부 참조를 함께 변경 |
 | `batch FILE --operations PLAN --revision SHA256` | `--dry-run` | 단일 문서의 의미 편집 목록을 순차 검증 후 한 번 저장 |
@@ -132,6 +133,29 @@ Core/batch는 `{ "type": "insertParagraph", "id": "control", "index": 0, "text":
 
 기존 문법·모델·응답 envelope와 교체 index는 변경하지 않는다. 문서 migration은 없으며, 구버전은 새 operation을 지원하지 않는다. 공개 Operation union을 exhaustive switch로 처리하는 소비자는 새 분기를 고려해야 한다. [새 문서 작성 계획](../examples/new-document-edit.json)과 [편집 시나리오](authoring-scenario.md)는 새 문서에 삽입한 뒤 기존 교체 명령으로 수정하고 검증·HTML 출력까지 수행한다.
 
+## Generic directive 생성
+
+`directive insert FILE --section ID --from INPUT`은 섹션의 직접 본문 끝에 새 객체를 생성한다. `INPUT`은 아래 의미 구조의 JSON 파일이며 `--from -`이면 stdin을 읽는다. 원문 fragment가 아니다. 대상 문서는 실제 파일이어야 하고 `--stdin`은 허용하지 않는다. 파일 입력의 UTF-8 엄격 decoding·선두 BOM·10 MiB 한도·symlink/hardlink 제한은 batch와 같다. Stdin도 UTF-8/BOM/10 MiB 한도를 적용한다. 결과 문서 크기와 revision·dry-run·협조적 lock·JSON 응답은 기존 개별 편집 경로를 따른다.
+
+```json
+{
+  "name": "requirement",
+  "id": "REQ-DC-001",
+  "attributes": { "status": "draft" },
+  "children": [{ "type": "paragraph", "text": "Validate all inputs." }]
+}
+```
+
+```sh
+pnpm exec narudoc directive insert sample.narudoc --section control --from examples/requirement-input.json --revision REVISION_FROM_INSPECT --dry-run --json
+```
+
+실제 저장에서는 `--dry-run`을 제거한다. 필수/선택 필드와 paragraph/list/code 생성 규칙은 [파일 계약](format.md#편집-의미)을 따른다. 알 수 없는 필드, 잘못된 타입·name·ID·attribute·child, 중복 JSON key, 중복 문서 ID는 `NARU_ARGUMENT`(2)다. 대상 section이 없거나 heading이 아니면 `NARU_TARGET`(2), 깨진 참조는 `NARU_INVALID_DOCUMENT`(3)다. 실패 전 계획은 저장하지 않는다. 저장 중 I/O 오류의 보장 범위는 기존 파일 계약을 따른다.
+
+Core/batch는 동일 필드에 `type: "insertDirective"`, `sectionId: "control"`을 더한 operation을 사용한다. API 입력 타입은 parsed 모델과 분리되어 range를 요구하지 않는다. 생성 후 같은 batch에서 속성·본문 수정 및 ID rename을 실행할 수 있고, 후속 실패는 삽입도 저장하지 않는다. 반복 호출은 같은 ID 충돌이므로 재시도 전 조회한다.
+
+CLI의 directive 입력과 batch JSON 모두 중복 object key를 거부한다. Escape를 풀었을 때 같은 key도 중복이며, 이는 이전 batch의 JSON.parse last-value-wins 동작을 의도적으로 좁힌다. 정상적인 고유 key 계획은 그대로 실행된다. 중복 key는 operation 해석 전 입력 오류이므로 `operationIndex`가 없다. 응답 envelope와 schemaVersion은 유지한다. 구버전은 새 operation을 지원하지 않으며 exhaustive union 소비자는 새 분기를 고려해야 한다. [실행 예제](../examples/requirement-input.json)와 [시나리오](authoring-scenario.md)를 참고한다.
+
 ## Directive 본문 문단 편집
 
 `directive replace-paragraph FILE --id ID --index N --text TEXT`는 ID가 있는 generic directive(예: requirement)의 본문 문단 하나를 교체한다. `get FILE --id ID --json`으로 `node.children`을 조회하고 paragraph만 센 0-based index를 지정한다. 전체 children 배열 index와 다를 수 있다. 목록·코드 편집, 문단 삽입·삭제는 지원하지 않는다.
@@ -165,7 +189,7 @@ Core/batch의 타입은 `{ "type": "replaceDirectiveParagraph", "id": "REQ-001",
 }
 ```
 
-계획의 각 작업은 아래 필드를 정확히 가진다. `type`과 `index`를 제외한 값은 모두 올바른 Unicode 문자열이다. `index`는 0 이상의 안전한 정수다. 의미 제약은 해당 개별 편집과 같다.
+계획의 각 작업은 아래 필드를 정확히 가진다. `insertDirective`의 `attributes`/`children`은 위 구조화 입력 규칙을 따른다. 나머지 필드 중 `index`는 0 이상의 안전한 정수이고 다른 값은 모두 올바른 Unicode 문자열이다. 의미 제약은 해당 개별 편집과 같다.
 
 | type | type 외 필수 필드 |
 | --- | --- |
@@ -175,6 +199,7 @@ Core/batch의 타입은 `{ "type": "replaceDirectiveParagraph", "id": "REQ-001",
 | `moveSection` | `id`, `after` |
 | `replaceParagraph` | `id`, `index`, `text` |
 | `insertParagraph` | `id`, `index`, `text` |
+| `insertDirective` | `sectionId`, `name`, `id`, `attributes`, `children` (상기 구조화 입력) |
 | `replaceDirectiveParagraph` | `id`, `index`, `text` |
 | `setDirectiveAttribute` | `id`, `key`, `value` |
 | `renameId` | `id`, `newId` |

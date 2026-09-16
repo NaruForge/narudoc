@@ -28,6 +28,7 @@ node scripts/verify-authoring.mjs
 | `renamed.narudoc` | 요구사항 ID와 내부 참조를 함께 바꾼 문서 |
 | `directive-paragraph.narudoc`, `directive-paragraph.html` | 원본 복사본의 요구사항 본문 문단을 편집·검증·출력한 결과 |
 | `new-document.narudoc`, `new-document.html` | CLI로 새 문서를 생성하고 문단 삽입·수정·검증·출력한 결과 |
+| `structured-document.narudoc`, `structured-document.html` | 새 문서·섹션·문단·directive 생성 후 속성·본문·참조를 수정하고 출력한 결과 |
 
 ## 확인하는 사용자 흐름
 
@@ -43,6 +44,8 @@ node scripts/verify-authoring.mjs
 10. 별도 원본 복사본에 [본문 문단 편집 계획](../examples/directive-paragraph-edit.json)을 적용한다. `get`에서 얻은 revision으로 batch dry-run/실제 저장을 실행하고, 요구사항 문장만 바뀐 전체 bytes와 검증·HTML을 확인한다. 개별 CLI와 batch 실패 보존은 [본문 편집 acceptance test](../tests/acceptance/directive-edit.test.mjs)에서 검증한다.
 
 새 문서 작성도 위 스크립트에서 검증한다. `new`로 `control` 문서를 만든 뒤 [작성 계획](../examples/new-document-edit.json)으로 첫 문단과 두 번째 문단을 삽입하고 첫 문단을 수정한다. Batch dry-run의 파일 불변, 실제 저장의 전체 원문·단계별 edit·revision 일치, validation과 HTML을 확인한다. 개별 CLI 및 혼합 블록·실패 경로는 [문단 삽입 테스트](../tests/acceptance/paragraph-insert.test.mjs)에서 검증한다.
+
+구조화 작성 시나리오는 `new → section insert → paragraph insert → directive insert`로 문서를 만든다. [의미 입력 예제](../examples/requirement-input.json)의 문단·목록·코드를 생성하고 dry-run 불변과 저장 응답의 일치를 확인한다. 생성한 객체에 속성·본문 문단 수정과 ID/내부 참조 rename을 적용한 뒤 validation 및 HTML을 검증한다. [생성 acceptance test](../tests/acceptance/directive-insert.test.mjs)는 전체 bytes 보존·입력 오류·batch rollback·후속 편집을 별도로 검증한다.
 
 ## 사용하면서 드러나는 제약
 

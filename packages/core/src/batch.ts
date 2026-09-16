@@ -1,8 +1,10 @@
 import { BatchOperationError, NaruError, wellFormed, type BatchEditPlan, type DocumentSnapshot, type Operation } from '@naruforge/narudoc-model';
 import { planOperation } from './operations.js';
 import { assertValid } from './validation.js';
+import { readInsertDirective } from './directive-input.js';
 
 const fields: Record<Operation['type'], readonly string[]> = {
+  insertDirective: ['type', 'sectionId', 'name', 'id', 'attributes', 'children'],
   renameId: ['type', 'id', 'newId'],
   setHeadingTitle: ['type', 'id', 'title'],
   insertSection: ['type', 'after', 'id', 'title'],
@@ -21,6 +23,7 @@ function operation(value: unknown): Operation {
     throw new NaruError('NARU_ARGUMENT', 'Expected a supported operation object.');
   }
   const keys = fields[value.type as Operation['type']];
+  if (value.type === 'insertDirective') return readInsertDirective(value);
   if (Object.keys(value).length !== keys.length || keys.some(key => !Object.hasOwn(value, key))) {
     throw new NaruError('NARU_ARGUMENT', 'Operation fields must exactly match its type.');
   }

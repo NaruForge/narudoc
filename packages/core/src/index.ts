@@ -4,3 +4,4 @@ export * from './validation.js';
 export * from './patch.js';
 export * from './operations.js';
 export * from './batch.js';
+export { readDirectiveInput } from './directive-input.js';

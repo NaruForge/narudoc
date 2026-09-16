@@ -14,6 +14,13 @@ export interface Paragraph extends Base { type: 'paragraph'; inline: Inline[] }
 export interface List extends Base { type: 'list'; ordered: boolean; start: number; items: Inline[][] }
 export interface Code extends Base { type: 'code'; language: string; value: string }
 export type DirectiveBodyBlock = Paragraph | List | Code;
+/** Authoring inputs have no source ranges; the parser assigns ranges after insertion. */
+export type DirectiveChildInput =
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; ordered: boolean; start?: number; items: string[] }
+  | { type: 'code'; language?: string; value: string };
+export interface DirectiveInput { name: string; id: string; attributes: Record<string, string>; children: DirectiveChildInput[] }
+export type InsertDirectiveOperation = DirectiveInput & { type: 'insertDirective'; sectionId: string };
 export interface Directive extends Base {
   type: 'directive'; name: string; id?: string; attributes: Attribute[]; children: DirectiveBodyBlock[]; headerEnd: number;
 }
@@ -25,6 +32,7 @@ export interface DocumentSnapshot {
 export interface TextEdit extends Range { text: string; expected: string }
 export interface Section extends Range { heading: Heading; parentStart: number | null }
 export type Operation =
+  | InsertDirectiveOperation
   | { type: 'renameId'; id: string; newId: string }
   | { type: 'setHeadingTitle'; id: string; title: string }
   | { type: 'insertSection'; after: string; id: string; title: string }
