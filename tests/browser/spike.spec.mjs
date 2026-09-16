@@ -4,14 +4,27 @@ import { planOperation, parseDocument } from '../../packages/core/dist/index.js'
 const original = await readFile(new URL('../../examples/visual-fidelity.narudoc', import.meta.url),'utf8');
 const box = page => page.getByRole('textbox',{name:'paragraph control 0',exact:true});
 async function selectText(page, text) {
-  const target = box(page), value = await target.textContent();
-  const offset = value.indexOf(text);
-  expect(offset).toBeGreaterThanOrEqual(0);
-  await target.focus();
-  await page.keyboard.press('Control+Home');
-  for (let i = 0; i < offset; i++) await page.keyboard.press('ArrowRight');
-  for (let i = 0; i < text.length; i++) await page.keyboard.press('Shift+ArrowRight');
+  await page.evaluate(text => {
+    const editor = window.spike.editors.find(e => e.target.kind === 'paragraph' && e.target.id === 'control' && e.target.index === 0);
+    const view = editor.view;
+    view.focus();
+    let found = false;
+    view.state.doc.descendants((node, position) => {
+      if (found || !node.isText) return;
+      const index = node.text.indexOf(text);
+      if (index < 0) return;
+      const Selection = view.state.selection.constructor;
+      view.dispatch(view.state.tr.setSelection(Selection.create(view.state.doc, position + index, position + index + text.length)));
+      found = true;
+    });
+    if (!found) throw Error('Text not found');
+  }, text);
   await expect.poll(() => page.evaluate(() => getSelection().toString())).toBe(text);
+  await expect.poll(() => page.evaluate(() => {
+    const editor = window.spike.editors.find(e => e.target.kind === 'paragraph' && e.target.id === 'control' && e.target.index === 0);
+    const { from, to } = editor.view.state.selection;
+    return editor.view.state.doc.textBetween(from, to);
+  })).toBe(text);
 }
 const source = page => page.evaluate(()=>window.spike.session.source);
 test.beforeEach(async({page})=>{await page.goto('/');await expect(box(page)).toBeVisible();});
