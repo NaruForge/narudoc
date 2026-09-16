@@ -137,3 +137,19 @@ test('exact section and directive paragraph no-op preserve mixed EOL independent
     const plan = planOperation(parseDocument(input), operation); assert.deepEqual(plan.edits, []); assert.deepEqual(Buffer.from(plan.next.source), Buffer.from(input));
   }
 });
+test('sparse direct-JS arrays fail with a classified error and step index', () => {
+  for (const bad of [
+    { type: 'insertDirective', ...operationDefinitions.insertDirective.example, children: new Array(1) },
+    { type: 'insertTable', sectionId: 'control', headers: new Array(1), rows: [] },
+    { type: 'insertTable', sectionId: 'control', headers: ['A'], rows: [new Array(1)] },
+  ]) {
+    assert.throws(() => readOperation(bad), { code: 'NARU_ARGUMENT' });
+    assert.throws(() => planSequence(parseDocument(source), [{ type: 'setHeadingTitle', id: 'control', title: 'Control' }, bad]), e => e.code === 'NARU_ARGUMENT' && e.operationIndex === 1);
+  }
+});
+test('final-only sequence discards intermediate edit slices but retains global errors', () => {
+  const doc = parseDocument(source), operations = Array.from({ length: 150 }, (_, i) => ({ type: 'setHeadingTitle', id: 'control', title: 'Control ' + i }));
+  const plan = planSequence(doc, operations, { collectSteps: false });
+  assert.deepEqual(plan.steps, []); assert.equal(plan.next.source, source.replace('Control  {#', 'Control 149  {#'));
+  assert.throws(() => planSequence(doc, [...operations, { type: 'removeSection', id: 'missing' }], { collectSteps: false }), e => e.code === 'NARU_TARGET' && e.operationIndex === 150);
+});

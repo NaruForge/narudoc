@@ -48,7 +48,10 @@ export function validateInput(schema: InputSchema, value: unknown, path = '$'): 
     case 'boolean': if (typeof value !== 'boolean') invalid('Expected a boolean.'); break;
     case 'array': {
       if (!Array.isArray(value) || value.length < (schema.minItems ?? 0)) invalid('Expected an array with enough items.');
-      (value as unknown[]).forEach((item, index) => validateInput(schema.items!, item, `${path}[${index}]`)); break;
+      const items = value as unknown[];
+      // forEach skips holes; direct JS callers must get the same rejection as JSON nulls.
+      for (let index = 0; index < items.length; index++) validateInput(schema.items!, items[index], `${path}[${index}]`);
+      break;
     }
     case 'object': {
       if (!isInputObject(value)) invalid('Expected a plain object.');

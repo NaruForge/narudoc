@@ -5,7 +5,7 @@ import { assertValid } from './validation.js';
 /** Historical public batch/CLI request policy, not a semantic transaction limit. */
 export const BATCH_OPERATION_LIMIT = 100;
 /** Sequential semantic planning. Hosts own resource limits and persist only the final result. */
-export function planSequence(doc: DocumentSnapshot, operations: readonly unknown[]): BatchEditPlan {
+export function planSequence(doc: DocumentSnapshot, operations: readonly unknown[], options: { collectSteps?: boolean } = {}): BatchEditPlan {
   if (!Array.isArray(operations)) throw new NaruError('NARU_ARGUMENT', 'Expected operations array.');
   assertValid(doc);
   let next = doc;
@@ -14,7 +14,8 @@ export function planSequence(doc: DocumentSnapshot, operations: readonly unknown
     try {
       // Validate lazily: preserve first failing step even if a later input is malformed.
       const plan = planOperation(next, readOperation(operations[operationIndex]));
-      steps.push({ operationIndex, edits: plan.edits }); next = plan.next;
+      if (options.collectSteps !== false) steps.push({ operationIndex, edits: plan.edits });
+      next = plan.next;
     } catch (error) {
       if (error instanceof NaruError) throw new BatchOperationError(operationIndex, error);
       throw error;

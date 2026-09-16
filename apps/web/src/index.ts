@@ -61,7 +61,7 @@ export async function startEditor(file: string, port = 0) {
       const input = request(await body(req));
       const current = await load(path);
       if (input.revision !== current.revision) { json(409, { code: 'NARU_STALE', message: 'File changed. Draft retained; reload only when ready to discard it.', latestRevision: current.revision }); return; }
-      const next = planSequence(parseDocument(current.source), input.operations).next;
+      const next = planSequence(parseDocument(current.source), input.operations, { collectSteps: false }).next;
       assertDocumentSize(next.source);
       if (route === '/api/save') {
         await save(current, next.source);
