@@ -63,6 +63,6 @@ body:
     id: evidence
     attributes:
       label: 관련 근거
-      description: 관련 문서, 검증 자료, ADR, PR 등의 링크를 적으세요. 아직 없으면 없다고 적으세요.
+      description: 관련 문서·검증 자료·ADR·PR을 연결하세요. 설계 착수 시 ADR 필요 여부와 이유를 적고, 계약 변경이면 기존 문서·소비자에 대한 호환성 영향과 마이그레이션 필요 여부를 설명하세요. 기록·승인 절차는 docs/project-records.md를 따릅니다.
     validations:
       required: true
