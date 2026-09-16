@@ -22,9 +22,10 @@
 | `section move FILE --id ID --after ID` | 편집 공통 옵션 | 같은 부모·같은 level의 섹션 이동 |
 | `paragraph replace FILE --id SECTION --index 0 --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 자식 문단 교체; index는 0부터 시작 |
 | `directive set FILE --id ID --key KEY --value VALUE` | 편집 공통 옵션 | 속성 추가·변경; ID 변경 제외 |
+| `id rename FILE --id OLD --new-id NEW` | 편집 공통 옵션 | ID 정의와 같은 문서 내부 참조를 함께 변경 |
 | `batch FILE --operations PLAN --revision SHA256` | `--dry-run` | 단일 문서의 의미 편집 목록을 순차 검증 후 한 번 저장 |
 
-편집 공통 옵션은 `--dry-run`, `--revision SHA256`이다. 기존 문서 편집 6종과 `batch`에서 지원하며 읽기 명령과 `new`에서는 지원하지 않는다. 개별 편집의 `--revision`은 선택 옵션이지만 조회 후 변경하는 자동화에서는 사용한다. `batch`에서는 필수다.
+편집 공통 옵션은 `--dry-run`, `--revision SHA256`이다. 기존 문서 편집 7종과 `batch`에서 지원하며 읽기 명령과 `new`에서는 지원하지 않는다. 개별 편집의 `--revision`은 선택 옵션이지만 조회 후 변경하는 자동화에서는 사용한다. `batch`에서는 필수다.
 
 읽기 명령은 `FILE` 대신 `-` 또는 `--stdin`을 사용할 수 있다. 기존 문서 편집과 `new`는 실제 파일 경로가 필요하다. `--to`는 `html`만 지원한다. `new`와 `render --output`은 기존 파일을 덮어쓰지 않는다.
 
@@ -56,6 +57,8 @@
 Range는 `{ start, end }`이고 UTF-16 code unit 기준 `[start, end)`이다. 파일 byte offset이나 줄·열 번호가 아니다. 원본의 BOM과 개행도 위치 계산에 포함한다. `TextEdit`는 `{ start, end, expected, text }`이며 `expected`는 교체 전 문자열, `text`는 교체할 문자열이다. 반환된 edit 배열은 해당 원본 snapshot에만 해당하고 다른 revision에 재사용하지 않는다. CLI는 이 배열을 입력받아 적용하는 명령을 제공하지 않는다.
 
 진단은 `{ code, message, severity, range }`이며 `severity`는 `error` 또는 `warning`이다. 사람이 읽는 메시지보다 코드·severity·종료 코드를 기준으로 분기한다. Block·inline의 현재 필드와 타입은 [공통 모델](../packages/model/src/index.ts), outline 결과는 [조회 구현](../packages/core/src/query.ts)과 대응한다. 임의의 JSON을 안정된 독립 파일 포맷으로 저장하는 계약은 아니다.
+
+파서 생성 모델의 heading에는 `idRange`(ID 문자만, `{#`·`}` 제외), inline link에는 `urlRange`(목적 URL만, 괄호 제외)가 추가된다. `inspect`와 `get` JSON에도 나타날 수 있는 선택적 필드이며 기존 필드는 유지한다. 범위는 전체 문서 원문 기준 UTF-16이다. 기존에 저장한 모델을 편집 입력으로 재사용하지 말고 현재 원문을 다시 파싱한다. `parseInline` 단독 호출은 기본적으로 위치 필드를 추가하지 않으며 세 번째 인자 `sourceOffset`을 제공하면 해당 원문 위치를 기준으로 `urlRange`를 계산한다.
 
 ## stdout·stderr와 종료 코드
 
@@ -97,9 +100,23 @@ Dry-run은 문서를 읽고 지정한 revision·대상·편집 결과의 유효�
 
 텍스트 preview의 `@@ UTF-16 start:end @@`와 JSON 문자열로 표시한 `-`/`+`는 사람이 검토할 표시다. `git apply`에 넣는 unified patch가 아니다. 실제 편집은 검토한 의미 명령을 원본 revision과 함께 다시 실행한다.
 
+## ID와 내부 참조 변경
+
+`id rename FILE --id OLD --new-id NEW`는 heading 또는 directive의 ID와 파서가 인식한 같은 문서 내부 링크를 하나의 operation으로 변경한다. 제목/문단/목록/directive 본문 및 강조 안의 링크가 포함된다. 비교는 기존 검증과 같은 `decodeURIComponent` 규칙이다. 예를 들어 `#REQ%2D001`도 `REQ-001`을 가리키므로 변경 대상이다. 변경된 목적지는 `#NEW`로 기록하며 링크 라벨은 유지한다.
+
+```sh
+pnpm exec narudoc id rename examples/engineering.narudoc --id REQ-001 --new-id REQ-CTRL-001 --dry-run --json
+```
+
+실제 저장은 조회한 `--revision`과 함께 실행한다. 같은 ID 지정은 no-op으로 인코딩 표현까지 유지한다. 잘못된 새 ID나 다른 대상과의 ID 충돌은 `NARU_ARGUMENT`(2), 없는 대상은 `NARU_TARGET`(2), 처음부터 유효하지 않은 문서는 `NARU_INVALID_DOCUMENT`(3)로 실패한다. 원문은 저장하지 않는다. 수동으로 만든 모델에 필요한 위치가 없거나 불일치하면 Core는 `NARU_PATCH`로 거부하므로 현재 parser로 다시 파싱한다.
+
+코드 블록/inline code/escape로 인해 링크로 인식되지 않는 텍스트, 링크 라벨, metadata·directive의 일반 속성 값, 외부 URL과 `other.narudoc#OLD`는 바꾸지 않는다. 다른 문서에서 들어오는 참조도 갱신하지 않는다. 문법 전체를 정규식으로 검색·치환하지 않고 현재 지원 문법의 의미 링크만 처리한다. 일반 `directive set --key id`는 계속 거부한다.
+
+배치에는 `{ "type": "renameId", "id": "REQ-001", "newId": "REQ-CTRL-001" }`을 넣는다. ID와 참조가 같은 단계에서 바뀌므로 중간 참조 오류 없이 다음 단계에서 새 ID를 사용할 수 있다. 앞선 단계의 원문 범위가 바뀌어도 새 snapshot에서 위치를 계산한다.
+
 ## 단일 문서 배치 편집
 
-`batch FILE --operations PLAN --revision SHA256`은 한 파일에 기존 6종 편집을 목록 순서대로 적용한다. `PLAN`은 JSON 파일 경로이며 `--operations -`이면 stdin에서 계획을 읽는다. 대상 문서 `FILE`은 실제 파일이어야 한다. `--stdin`은 받지 않는다. 계획 파일에는 문서 파일과 같은 symlink/hardlink 제한을 적용한다.
+`batch FILE --operations PLAN --revision SHA256`은 한 파일에 기존 7종 편집을 목록 순서대로 적용한다. `PLAN`은 JSON 파일 경로이며 `--operations -`이면 stdin에서 계획을 읽는다. 대상 문서 `FILE`은 실제 파일이어야 한다. `--stdin`은 받지 않는다. 계획 파일에는 문서 파일과 같은 symlink/hardlink 제한을 적용한다.
 
 입력은 아래처럼 `schemaVersion: 1`과 `operations` 두 필드만 갖는다. 계획의 UTF-8 크기 한도는 BOM 포함 10 MiB이며 선두 BOM은 허용한다. 작업 수는 1~100개다. 알 수 없는 버전·필드·타입·누락 필드와 잘못된 JSON은 `NARU_ARGUMENT` / 종료 코드 2다. 인코딩 오류는 3, 크기 초과는 5다.
 
@@ -124,6 +141,7 @@ Dry-run은 문서를 읽고 지정한 revision·대상·편집 결과의 유효�
 | `moveSection` | `id`, `after` |
 | `replaceParagraph` | `id`, `index`, `text` |
 | `setDirectiveAttribute` | `id`, `key`, `value` |
+| `renameId` | `id`, `newId` |
 
 `--revision`은 조회한 원본의 64자리 소문자 SHA-256으로 필수다. 순차 적용 도중 revision을 갱신하는 옵션은 없다. 처음 조회한 파일 snapshot을 저장 시에도 재확인한다.
 

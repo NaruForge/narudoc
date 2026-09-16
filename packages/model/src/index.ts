@@ -4,11 +4,11 @@ export interface Diagnostic { code: string; message: string; severity: 'error' |
 export type Inline =
   | { type: 'text' | 'code'; value: string }
   | { type: 'emphasis' | 'strong'; children: Inline[] }
-  | { type: 'link'; url: string; children: Inline[] };
+  | { type: 'link'; url: string; children: Inline[]; urlRange?: Range };
 export interface Attribute { key: string; value: string; range: Range; valueRange: Range }
 interface Base { range: Range }
 export interface Heading extends Base {
-  type: 'heading'; level: number; title: string; titleRange: Range; inline: Inline[]; id?: string;
+  type: 'heading'; level: number; title: string; titleRange: Range; inline: Inline[]; id?: string; idRange?: Range;
 }
 export interface Paragraph extends Base { type: 'paragraph'; inline: Inline[] }
 export interface List extends Base { type: 'list'; ordered: boolean; start: number; items: Inline[][] }
@@ -24,6 +24,7 @@ export interface DocumentSnapshot {
 export interface TextEdit extends Range { text: string; expected: string }
 export interface Section extends Range { heading: Heading; parentStart: number | null }
 export type Operation =
+  | { type: 'renameId'; id: string; newId: string }
   | { type: 'setHeadingTitle'; id: string; title: string }
   | { type: 'insertSection'; after: string; id: string; title: string }
   | { type: 'removeSection'; id: string }

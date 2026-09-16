@@ -22,6 +22,8 @@ Edit 범위는 UTF-16 code unit의 반열린 구간 [start, end)이다. 변경 �
 
 유지 제안의 대안과 결과: [원본 보존 편집 방식](adr/0001-source-preserving-edits.md), [위치 단위](adr/0002-offset-encoding.md).
 
+ID 변경은 parser가 기록한 heading `idRange`, directive의 ID 속성 `valueRange`, inline link `urlRange`를 최소 patch로 수정한다. 참조 순회와 fragment 해석은 Core validation과 편집이 공유한다. 문법을 Core에서 다시 스캔하지 않으며 전체 문자열 검색·치환을 사용하지 않는다. 기존 UTF-16/원문 범위 편집 선택을 확장 적용하므로 별도 ADR을 추가하지 않는다.
+
 ## 저장과 안전
 
 CLI는 엄격한 UTF-8 decoding, 원본 SHA-256 revision, 협조적 lock, 같은 폴더 임시 파일과 rename을 담당한다. 저장 직전에 원본 revision을 다시 확인한다. symlink·hardlink 파일 편집은 MVP에서 거부한다. 외부의 비협조적 writer에 대한 완전한 compare-and-swap이나 전원 장애 내구성은 보장하지 않는다. lock은 자동으로 빼앗거나 삭제하지 않는다.

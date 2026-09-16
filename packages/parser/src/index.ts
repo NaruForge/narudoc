@@ -59,8 +59,12 @@ export function parseDocument(source: string): DocumentSnapshot {
       if (closing) end = closing.index;
       while (end > prefix && /[ \t]/.test(line.text[end - 1]!)) end--;
       const title = line.text.slice(prefix, end);
-      const node: Heading = { type: 'heading', level: heading[1]!.length, title, inline: parseInline(title), titleRange: { start: line.start + prefix, end: line.start + Math.max(prefix, end) }, range: { start: line.start, end: line.end } };
-      if (id !== undefined) node.id = id;
+      const node: Heading = { type: 'heading', level: heading[1]!.length, title, inline: parseInline(title, 0, line.start + prefix), titleRange: { start: line.start + prefix, end: line.start + Math.max(prefix, end) }, range: { start: line.start, end: line.end } };
+      if (id !== undefined && anchor) {
+        node.id = id;
+        const start = line.start + anchor.index + anchor[0].indexOf('{#') + 2;
+        node.idRange = { start, end: start + id.length };
+      }
       if (!title) error('NARU_HEADING', 'Heading title must not be empty.', line.start, line.end);
       if (id !== undefined && !ID_PATTERN.test(id)) error('NARU_ID', `Invalid ID: ${id}`, line.start, line.end);
       blocks.push(node); i++; continue;
@@ -87,7 +91,8 @@ export function parseDocument(source: string): DocumentSnapshot {
       let split = i + 1; while (split < j && all[split]!.text.trim()) split++;
       const attrs = attributes(all.slice(i + 1, split));
       const id = attrs.find(a => a.key === 'id')?.value;
-      const node: Block = { type: 'directive', name: opening[1]!, attributes: attrs, body: parseInline(source.slice(all[split]?.next ?? source.length, all[j]?.start ?? source.length)), headerEnd: all[split]?.start ?? source.length, range: { start: line.start, end: all[j]?.end ?? source.length } };
+      const bodyStart = all[split]?.next ?? source.length;
+      const node: Block = { type: 'directive', name: opening[1]!, attributes: attrs, body: parseInline(source.slice(bodyStart, all[j]?.start ?? source.length), 0, bodyStart), headerEnd: all[split]?.start ?? source.length, range: { start: line.start, end: all[j]?.end ?? source.length } };
       if (id !== undefined) { node.id = id; if (!ID_PATTERN.test(id)) error('NARU_ID', `Invalid ID: ${id}`, line.start, line.end); }
       blocks.push(node); i = j + 1; continue;
     }
@@ -98,14 +103,14 @@ export function parseDocument(source: string): DocumentSnapshot {
       while (j < all.length) {
         const m = listPattern.exec(all[j]!.text);
         if (!m || /^\d/.test(m[1]!) !== ordered) break;
-        items.push(parseInline(m[2]!)); j++;
+        items.push(parseInline(m[2]!, 0, all[j]!.end - m[2]!.length)); j++;
       }
       blocks.push({ type: 'list', ordered, start: ordered ? Number.parseInt(firstItem[1]!, 10) : 1, items, range: { start: line.start, end: all[j - 1]!.end } }); i = j; continue;
     }
     let j = i + 1;
     while (j < all.length && all[j]!.text.trim() && !special(all[j]!.text)) j++;
     const end = all[j - 1]!.end;
-    blocks.push({ type: 'paragraph', inline: parseInline(source.slice(line.start, end)), range: { start: line.start, end } }); i = j;
+    blocks.push({ type: 'paragraph', inline: parseInline(source.slice(line.start, end), 0, line.start), range: { start: line.start, end } }); i = j;
   }
   return { source, blocks, diagnostics, eol };
 }

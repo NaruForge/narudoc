@@ -112,6 +112,19 @@ try {
   assert.equal(rejected.error.code, 'NARU_TARGET');
   assert.equal(rejected.error.operationIndex, 3);
   assert.deepEqual(await readFile(rejectedFile), original);
+
+  const renamedFile = join(output, 'renamed.narudoc');
+  await writeFile(renamedFile, await readFile(batchFile));
+  const renameArgs = ['id', 'rename', renamedFile, '--id', 'REQ-001', '--new-id', 'REQ-CTRL-001', '--revision', batchSaved.nextRevision];
+  const renamePreview = run([...renameArgs, '--dry-run']);
+  assert.equal(await readFile(renamedFile, 'utf8'), expected);
+  const renamed = run(renameArgs);
+  assert.equal(renamed.nextRevision, renamePreview.nextRevision);
+  assert.equal(await readFile(renamedFile, 'utf8'), expected.replace('id: REQ-001', 'id: REQ-CTRL-001').replace('](#REQ-001)', '](#REQ-CTRL-001)'));
+  assert.equal(run(['validate', renamedFile]).valid, true);
+  const renamedHtml = run(['render', renamedFile, '--to', 'html']).html;
+  assert.match(renamedHtml, /href="#REQ-CTRL-001"/);
+  assert.match(renamedHtml, /id="REQ-CTRL-001"/);
   assert.deepEqual(await readFile(join(root, 'examples/engineering.narudoc')), original);
   console.log(`PASS: authoring scenario; artifacts: ${output}`);
 } finally {

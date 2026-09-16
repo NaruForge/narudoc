@@ -25,6 +25,7 @@ node scripts/verify-authoring.mjs
 | `commands.json` | CLI 인자, 종료 코드, stdout, stderr |
 | `batch.narudoc`, `batch.html` | 같은 수정 요청을 배치 한 번으로 처리한 결과 |
 | `rejected-batch.narudoc`, `rejected-plan.json` | 마지막 작업 실패로 원본이 유지된 문서와 실패 계획 |
+| `renamed.narudoc` | 요구사항 ID와 내부 참조를 함께 바꾼 문서 |
 
 ## 확인하는 사용자 흐름
 
@@ -36,6 +37,7 @@ node scripts/verify-authoring.mjs
 6. HTML의 수정된 값, 절 순서와 참조 대상·링크를 검사하고 Git diff를 저장한다.
 7. [engineering-edit.json](../examples/engineering-edit.json)을 원본 복사본에 `batch`로 적용한다. 전체 dry-run은 쓰지 않고, 실제 배치 저장의 원문과 HTML은 위 개별 편집 결과와 같아야 한다.
 8. 같은 계획 끝에 존재하지 않는 섹션 삭제를 추가한다. 네 번째 작업이 실패하면 앞선 세 작업도 저장되지 않고 원본 bytes가 유지되어야 한다.
+9. 편집 결과 복사본의 `REQ-001`을 `REQ-CTRL-001`로 바꾼다. dry-run/실제 저장 결과가 같고, ID 정의와 내부 링크만 변경되며 검증과 HTML의 목적지·링크가 일치해야 한다.
 
 ## 사용하면서 드러나는 제약
 
@@ -46,3 +48,5 @@ node scripts/verify-authoring.mjs
 - 충돌 시 자동 재시도하지 않는다. 여기서는 통제된 문단 변경 후에도 속성 수정 의도가 유효함을 확인하고 진행한다. 일반 자동화는 재조회 후 변경 의도를 다시 판단해야 한다.
 
 이 스크립트는 현재 [CLI 계약](cli.md)의 사용 예이자 회귀 검증이다. HTML 문자열을 검사하며 브라우저의 시각적 배치, 비협조적 외부 writer와의 완전한 동시성, 전원 장애 내구성을 검증하지 않는다. 개행·BOM 조합과 다른 오류 경로는 acceptance test의 범위다. 최초 실행은 [Issue #7](https://github.com/NaruForge/narudoc/issues/7), 배치 확장과 검증은 [Issue #9](https://github.com/NaruForge/narudoc/issues/9)와 연결 PR에 기록한다.
+
+ID 변경 검증과 범위는 [Issue #11](https://github.com/NaruForge/narudoc/issues/11)에 기록한다.
