@@ -46,6 +46,10 @@ ID는 `[A-Za-z][A-Za-z0-9._:-]*`이고 문서 내 유일하다. 문단마다 ID�
 
 ## 편집 의미
 
+`insertParagraph`는 섹션 heading ID와 문단 index로 문단 하나를 추가한다. 다음 heading 전까지의 직접 문단만 세며, directive 내부와 하위 섹션 문단은 제외한다. 직접 문단이 n개라면 0..n을 허용한다. index < n은 해당 문단 바로 앞, index == n은 직접 본문의 마지막 블록 뒤(첫 하위/다음 heading 전)에 추가한다. 문단이 없는 섹션은 0을 사용하며 목록·코드·directive가 있으면 그 뒤에 추가한다. 그러므로 index 0이 언제나 섹션의 첫 블록 앞을 뜻하지는 않는다.
+
+입력은 section 문단 교체와 같은 단일 문단 문법을 따른다. 빈 입력·앞뒤 빈 줄·여러 블록·heading/list/fence/directive 삽입은 거부하며 참조는 전체 결과에서 검증한다. 새 문단의 개행은 문서의 첫 개행 방식(없으면 LF)을 사용한다. 기존 원문은 삭제·교체하지 않고 문단과 필요한 경계 개행만 삽입한다. 양옆에 블록이 있으면 빈 줄을 확보하며 기존 공백 줄과 혼합 개행은 그대로 둔다. EOF에 추가할 때 기존 마지막 블록 뒤의 공백·개행은 새 문단 뒤에 남기므로 마지막 개행 유무도 유지한다. 같은 명령을 반복하면 문단이 다시 추가되며 중복 제거/no-op은 아니다.
+
 Section은 heading 시작부터 다음 동급/상위 heading 직전 또는 EOF까지이며 내부 하위 섹션과 뒤쪽 공백을 포함한다. 이동은 같은 부모의 동급 섹션 사이에서만 허용한다. 이동 대상 내부로 이동할 수 없다. Section 문단 교체의 index는 지정 section의 직접 자식 문단을 대상으로 한 0-based index다. Directive 내부 문단은 세지 않는다. 속성 편집과 섹션 이동은 본문을 재직렬화하지 않는다.
 
 `replaceDirectiveParagraph`는 directive ID와 본문 문단의 0-based index로 기존 문단 하나를 교체한다. `children` 중 paragraph만 세므로 목록·코드는 index에 포함하지 않는다. 빈 본문에 문단을 삽입하거나 기존 문단을 삭제하는 기능은 아니다. 입력은 directive 문맥에서 정확히 한 문단이어야 하며 앞뒤 빈 줄·추가 블록·닫는 delimiter·중첩 directive를 거부한다. Heading·metadata처럼 보이는 줄은 기존 본문 문법에 따라 literal paragraph다. 교체 후 전체 문서를 재파싱·검증하므로 깨진 내부 참조도 거부한다.

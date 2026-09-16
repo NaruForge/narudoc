@@ -140,6 +140,22 @@ try {
   const paragraphHtmlPath = join(output, 'directive-paragraph.html');
   run(['render', paragraphFile, '--to', 'html', '--output', paragraphHtmlPath]);
   assert.match(await readFile(paragraphHtmlPath, 'utf8'), /<p>The controller shall validate all inputs\.<\/p>/);
+  const newFile = join(output, 'new-document.narudoc');
+  const created = run(['new', newFile, '--title', 'Control', '--id', 'control']);
+  assert.equal(await readFile(newFile, 'utf8'), '# Control {#control}\n');
+  const newArgs = ['batch', newFile, '--operations', join(root, 'examples/new-document-edit.json'), '--revision', created.revision];
+  const newPreview = run([...newArgs, '--dry-run']);
+  assert.equal(await readFile(newFile, 'utf8'), '# Control {#control}\n');
+  const newSaved = run(newArgs);
+  assert.deepEqual(newSaved.steps, newPreview.steps);
+  assert.equal(newSaved.nextRevision, newPreview.nextRevision);
+  assert.equal(await readFile(newFile, 'utf8'), '# Control {#control}\n\nThe controller validates all inputs.\n\nSee [control](#control).\n');
+  assert.equal(run(['validate', newFile]).valid, true);
+  const newHtmlPath = join(output, 'new-document.html');
+  run(['render', newFile, '--to', 'html', '--output', newHtmlPath]);
+  const newHtml = await readFile(newHtmlPath, 'utf8');
+  assert.match(newHtml, /<p>The controller validates all inputs\.<\/p>/);
+  assert.match(newHtml, /href="#control"/);
   assert.deepEqual(await readFile(join(root, 'examples/engineering.narudoc')), original);
   console.log(`PASS: authoring scenario; artifacts: ${output}`);
 } finally {

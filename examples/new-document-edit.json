@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "operations": [
+    { "type": "insertParagraph", "id": "control", "index": 0, "text": "The controller validates inputs." },
+    { "type": "insertParagraph", "id": "control", "index": 1, "text": "See [control](#control)." },
+    { "type": "replaceParagraph", "id": "control", "index": 0, "text": "The controller validates all inputs." }
+  ]
+}

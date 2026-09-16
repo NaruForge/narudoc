@@ -21,12 +21,13 @@
 | `section remove FILE --id ID` | 편집 공통 옵션 | 섹션과 하위 내용 삭제 |
 | `section move FILE --id ID --after ID` | 편집 공통 옵션 | 같은 부모·같은 level의 섹션 이동 |
 | `paragraph replace FILE --id SECTION --index 0 --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 자식 문단 교체; index는 0부터 시작 |
+| `paragraph insert FILE --id SECTION --index N --text TEXT` | 편집 공통 옵션 | 지정 섹션의 직접 문단 앞 또는 본문 끝에 문단 하나 삽입 |
 | `directive set FILE --id ID --key KEY --value VALUE` | 편집 공통 옵션 | 속성 추가·변경; ID 변경 제외 |
 | `directive replace-paragraph FILE --id ID --index N --text TEXT` | 편집 공통 옵션 | Directive 본문의 N번째 문단 교체; 목록·코드는 세지 않음 |
 | `id rename FILE --id OLD --new-id NEW` | 편집 공통 옵션 | ID 정의와 같은 문서 내부 참조를 함께 변경 |
 | `batch FILE --operations PLAN --revision SHA256` | `--dry-run` | 단일 문서의 의미 편집 목록을 순차 검증 후 한 번 저장 |
 
-편집 공통 옵션은 `--dry-run`, `--revision SHA256`이다. 기존 문서 편집 7종과 `batch`에서 지원하며 읽기 명령과 `new`에서는 지원하지 않는다. 개별 편집의 `--revision`은 선택 옵션이지만 조회 후 변경하는 자동화에서는 사용한다. `batch`에서는 필수다.
+편집 공통 옵션은 `--dry-run`, `--revision SHA256`이다. 기존 문서를 수정하는 모든 개별 편집과 `batch`에서 지원하며 읽기 명령과 `new`에서는 지원하지 않는다. 개별 편집의 `--revision`은 선택 옵션이지만 조회 후 변경하는 자동화에서는 사용한다. `batch`에서는 필수다.
 
 읽기 명령은 `FILE` 대신 `-` 또는 `--stdin`을 사용할 수 있다. 기존 문서 편집과 `new`는 실제 파일 경로가 필요하다. `--to`는 `html`만 지원한다. `new`와 `render --output`은 기존 파일을 덮어쓰지 않는다.
 
@@ -117,6 +118,20 @@ pnpm exec narudoc id rename examples/engineering.narudoc --id REQ-001 --new-id R
 
 배치에는 `{ "type": "renameId", "id": "REQ-001", "newId": "REQ-CTRL-001" }`을 넣는다. ID와 참조가 같은 단계에서 바뀌므로 중간 참조 오류 없이 다음 단계에서 새 ID를 사용할 수 있다. 앞선 단계의 원문 범위가 바뀌어도 새 snapshot에서 위치를 계산한다.
 
+## 섹션 문단 삽입
+
+`paragraph insert FILE --id SECTION --index N --text TEXT`는 기존 섹션에 문단 하나를 추가한다. `get FILE --id SECTION --json`의 원문 또는 `inspect`의 블록을 조회하여 다음 heading 전까지의 직접 문단 수 n을 확인한다. Index는 기존 `paragraph replace`처럼 문단만 세며 directive 내부/하위 섹션 문단과 목록·코드는 제외한다. 0..n 중 n 미만은 해당 문단 앞, n은 본문의 마지막 블록 뒤이자 첫 하위/다음 heading 전에 삽입한다. 문단이 없으면 0으로 마지막 비문단 블록 뒤에 추가하고, 본문도 없으면 heading 뒤에 첫 문단을 만든다.
+
+```sh
+pnpm exec narudoc paragraph insert sample.narudoc --id control --index 0 --text "The controller validates its inputs." --revision REVISION_FROM_INSPECT --dry-run --json
+```
+
+실제 저장에는 같은 명령에서 `--dry-run`을 제거한다. 입력은 기존 section 문단 교체와 같은 한 문단이어야 한다. 빈 문자열·앞뒤 빈 줄·여러 문단·구조 문법은 `NARU_ARGUMENT`(2), 없는 섹션/heading이 아닌 ID·범위 밖 index는 `NARU_TARGET`(2), 깨진 참조는 `NARU_INVALID_DOCUMENT`(3)다. CLI에서 음수·소수 등 잘못된 index 표기는 `NARU_ARGUMENT`(2)다. Revision·lock·크기 제한과 응답은 기존 편집 계약을 따른다. 실패하면 삽입을 저장하지 않는다.
+
+Core/batch는 `{ "type": "insertParagraph", "id": "control", "index": 0, "text": "The controller validates its inputs." }`을 사용한다. Batch에서 index는 각 단계 직전 snapshot 기준이며, 삽입 뒤에는 기존 문단 index가 달라질 수 있다. 반복 삽입은 중복 제거/no-op이 아니므로 자동 재시도 전에 문서를 다시 조회한다. 원본 보존과 경계 개행은 [파일 계약](format.md#편집-의미)을 따른다.
+
+기존 문법·모델·응답 envelope와 교체 index는 변경하지 않는다. 문서 migration은 없으며, 구버전은 새 operation을 지원하지 않는다. 공개 Operation union을 exhaustive switch로 처리하는 소비자는 새 분기를 고려해야 한다. [새 문서 작성 계획](../examples/new-document-edit.json)과 [편집 시나리오](authoring-scenario.md)는 새 문서에 삽입한 뒤 기존 교체 명령으로 수정하고 검증·HTML 출력까지 수행한다.
+
 ## Directive 본문 문단 편집
 
 `directive replace-paragraph FILE --id ID --index N --text TEXT`는 ID가 있는 generic directive(예: requirement)의 본문 문단 하나를 교체한다. `get FILE --id ID --json`으로 `node.children`을 조회하고 paragraph만 센 0-based index를 지정한다. 전체 children 배열 index와 다를 수 있다. 목록·코드 편집, 문단 삽입·삭제는 지원하지 않는다.
@@ -159,6 +174,7 @@ Core/batch의 타입은 `{ "type": "replaceDirectiveParagraph", "id": "REQ-001",
 | `removeSection` | `id` |
 | `moveSection` | `id`, `after` |
 | `replaceParagraph` | `id`, `index`, `text` |
+| `insertParagraph` | `id`, `index`, `text` |
 | `replaceDirectiveParagraph` | `id`, `index`, `text` |
 | `setDirectiveAttribute` | `id`, `key`, `value` |
 | `renameId` | `id`, `newId` |
