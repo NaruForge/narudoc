@@ -32,6 +32,7 @@ pnpm exec narudoc render examples/engineering.narudoc --to html --output out.htm
 
 - [제품 비전·원칙·현재 범위](docs/product.md)
 - [CLI 사용·JSON 응답·실패 처리](docs/cli.md)
+- [기술 문서 편집 시나리오 재현](docs/authoring-scenario.md)
 - [아키텍처](docs/architecture.md) / [폴더 배치](docs/repository-structure.md)
 - [파일 문법·원본 보존 계약](docs/format.md)
 - [설계 결정 기록](docs/adr/) — 각 문서의 Status를 확인한다.
