@@ -2,8 +2,11 @@ import { BatchOperationError, NaruError, wellFormed, type BatchEditPlan, type Do
 import { planOperation } from './operations.js';
 import { assertValid } from './validation.js';
 import { readInsertDirective } from './directive-input.js';
+import { readTableInput } from './table-input.js';
 
 const fields: Record<Operation['type'], readonly string[]> = {
+  insertTable: ['type', 'sectionId', 'headers', 'rows'],
+  setTableCell: ['type', 'sectionId', 'tableIndex', 'part', 'row', 'column', 'text'],
   insertDirective: ['type', 'sectionId', 'name', 'id', 'attributes', 'children'],
   renameId: ['type', 'id', 'newId'],
   setHeadingTitle: ['type', 'id', 'title'],
@@ -28,9 +31,13 @@ function operation(value: unknown): Operation {
   if (Object.keys(value).length !== keys.length || keys.some(key => !Object.hasOwn(value, key))) {
     throw new NaruError('NARU_ARGUMENT', 'Operation fields must exactly match its type.');
   }
+  if (value.type === 'insertTable') {
+    if (typeof value.sectionId !== 'string' || !wellFormed(value.sectionId)) throw new NaruError('NARU_ARGUMENT', 'sectionId must be a Unicode string.');
+    return { type: 'insertTable', sectionId: value.sectionId, ...readTableInput({ headers: value.headers, rows: value.rows }) };
+  }
   for (const key of keys) {
     const field = value[key];
-    if (key === 'index') {
+    if (['index', 'tableIndex', 'row', 'column'].includes(key)) {
       if (typeof field !== 'number' || !Number.isSafeInteger(field) || field < 0) throw new NaruError('NARU_ARGUMENT', 'index must be a non-negative safe integer.');
     } else if (typeof field !== 'string' || !wellFormed(field)) {
       throw new NaruError('NARU_ARGUMENT', `${key} must be a well-formed Unicode string.`);

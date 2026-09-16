@@ -1,4 +1,4 @@
-# CLI 사용과 자동화 계약 · v0.0.2
+# CLI 사용과 자동화 계약 · v0.0.3
 
 이 문서는 현재 CLI의 명령과 입출력 계약을 설명한다. 장기 목표는 [제품 비전](product.md), 문법·편집 의미·크기 제한은 [파일 계약](format.md), 저장 보장은 [아키텍처](architecture.md)를 따른다. API와 문법은 실험 단계다.
 
@@ -11,6 +11,9 @@
 | 명령 | 명령별 옵션 | 의미 |
 | --- | --- | --- |
 | `inspect FILE` | `--stdin` | 모델·길이·진단을 항상 JSON으로 출력 |
+| `table get FILE --section ID --index N` | `--stdin` | 직접 표 조회 |
+| `table insert FILE --section ID --from INPUT` | 편집 공통 옵션 | 표 JSON DTO 생성 |
+| `table set-cell FILE --section ID --index N --part header\|body --row N --column N --text TEXT` | 편집 공통 옵션 | 셀 내용만 수정 |
 | `outline FILE` | `--stdin` | 제목과 섹션 구조 조회 |
 | `get FILE --id ID` | `--stdin` | ID 대상 조회; heading이면 해당 섹션의 원문 반환 |
 | `validate FILE` | `--stdin` | 문서 진단과 유효성 판단 |
@@ -33,7 +36,7 @@
 
 읽기 명령은 `FILE` 대신 `-` 또는 `--stdin`을 사용할 수 있다. 기존 문서 편집과 `new`는 실제 파일 경로가 필요하다. `--to`는 `html`만 지원한다. `new`와 `render --output`은 기존 파일을 덮어쓰지 않는다.
 
-`--help` 또는 인자 없는 실행은 도움말 텍스트를 stdout에 출력한다. `--help --json`도 텍스트다. `--version`은 버전 텍스트, `--version --json`은 `{"version":"0.0.2"}`을 출력한다. 이 특수 응답들은 일반 문서 envelope를 사용하지 않는다.
+`--help` 또는 인자 없는 실행은 도움말 텍스트를 stdout에 출력한다. `--help --json`도 텍스트다. `--version`은 버전 텍스트, `--version --json`은 `{"version":"0.0.3"}`을 출력한다. 이 특수 응답들은 일반 문서 envelope를 사용하지 않는다.
 
 ## JSON 응답
 
@@ -204,11 +207,13 @@ Core/batch의 타입은 `{ "type": "replaceDirectiveParagraph", "id": "REQ-001",
 }
 ```
 
-계획의 각 작업은 아래 필드를 정확히 가진다. `insertDirective`의 `attributes`/`children`은 위 구조화 입력 규칙을 따른다. 나머지 필드 중 `index`는 0 이상의 안전한 정수이고 다른 값은 모두 올바른 Unicode 문자열이다. 의미 제약은 해당 개별 편집과 같다.
+계획의 각 작업은 아래 필드를 정확히 가진다. `insertDirective`의 `attributes`/`children`은 위 구조화 입력 규칙을 따른다. 표의 headers/rows는 별도 DTO이며, 나머지 필드 중 `index`, `tableIndex`, `row`, `column`은 0 이상의 안전한 정수이고 다른 값은 모두 올바른 Unicode 문자열이다. 의미 제약은 해당 개별 편집과 같다.
 
 | type | type 외 필수 필드 |
 | --- | --- |
 | `setHeadingTitle` | `id`, `title` |
+| `insertTable` | `sectionId`, `headers`, `rows` |
+| `setTableCell` | `sectionId`, `tableIndex`, `part`, `row`, `column`, `text` |
 | `insertSection` | `after`, `id`, `title` |
 | `insertChildSection` | `parent`, `id`, `title` |
 | `removeSection` | `id` |
@@ -257,6 +262,20 @@ Dry-run 결과를 검토한 뒤 실제 편집을 실행한다. 그 사이 원본
 
 ## 버전과 호환성 변경
 
-현재 제품·패키지 버전 `0.0.2`, 문법 문서의 대상 버전, CLI JSON의 `schemaVersion: 1`은 서로 다른 의미다. 원본 파일에 별도의 문법 버전 선택 필드는 정의되어 있지 않다. `--version --json`에도 일반 응답의 schemaVersion은 없다.
+현재 제품·패키지 버전 `0.0.3`, 문법 문서의 대상 버전, CLI JSON의 `schemaVersion: 1`은 서로 다른 의미다. 원본 파일에 별도의 문법 버전 선택 필드는 정의되어 있지 않다. `--version --json`에도 일반 응답의 schemaVersion은 없다.
 
 현재 계약은 실험 단계이고 영구적인 하위 호환을 보장하지 않는다. 그렇더라도 문법·ID·API·응답을 변경할 때 기존 문서와 소비자의 영향을 생략하지 않는다. 마이그레이션 필요 여부를 Issue에서 검토하고 변경되는 계약·예제·검증을 같은 PR에서 갱신한다. 사용자 문서를 묵시적으로 다시 작성하지 않는다. 절차 원본은 [프로젝트 기록 규약](project-records.md)이다.
+
+## 표 조회·생성·셀 편집
+
+```sh
+pnpm exec narudoc table insert sample.narudoc --section parameters --from examples/table-input.json --revision REVISION_FROM_INSPECT
+pnpm exec narudoc table get sample.narudoc --section parameters --index 0 --json
+pnpm exec narudoc table set-cell sample.narudoc --section parameters --index 0 --part body --row 0 --column 1 --text 420 --revision REVISION_FROM_TABLE_GET --dry-run --json
+```
+
+`table get`은 읽기 명령으로 stdin을 허용하며 JSON은 공통 envelope와 `node`, `source`를 반환한다. Revision은 조회 후 편집에 사용한다. `table insert --from`은 기존 strict JSON/중복 key/UTF-8/BOM/10 MiB 정책을 적용하고 `-`로 stdin 입력을 받는다. DTO는 `{ "headers": ["Name", "Value"], "rows": [["Voltage", "400"]] }`이며 추가 필드를 거부한다.
+
+Core는 `getTable(doc, sectionId, index)`, `insertTable { sectionId, headers, rows }`, `setTableCell { sectionId, tableIndex, part, row, column, text }`을 제공한다. Batch에는 각 operation의 `type`을 포함한다. Header 편집은 `part: "header", row: 0`, body는 `part: "body"`와 0-based row/column이다. 직접 표 index만 세고 다음 heading부터 제외한다. 의미 제약/원본 보존/0.0.3 해석 변경은 [표 계약](format.md#제한된-표--003)을 따른다.
+
+개별 쓰기는 dry-run/revision을 지원한다. 잘못된 DTO/셀 문법/part/header row는 NARU_ARGUMENT(2), 없는 section/table/cell은 NARU_TARGET(2), 결과 참조 오류는 NARU_INVALID_DOCUMENT(3)다. Revision/lock/크기 실패는 기존 코드이며 부분 저장하지 않는다. Body row가 데이터 범위 밖이면 대상 오류다. `--index`, `--row`, `--column`은 음수·소수·안전한 정수 밖 값을 인자 오류로 거부한다. 미지원 행/열 CRUD와 표 UI는 제공하지 않는다.

@@ -197,6 +197,21 @@ try {
   const hierarchyHtml = await readFile(hierarchyHtmlPath, 'utf8');
   assert.match(hierarchyHtml, /<h3 id="protection"/);
   assert.match(hierarchyHtml, /href="#validation"/);
+  const tableFile = join(output, 'parameters.narudoc');
+  run(['new', tableFile, '--id', 'parameters', '--title', 'Parameters']);
+  run(['table', 'insert', tableFile, '--section', 'parameters', '--from', join(root, 'examples/table-input.json')]);
+  const tableBefore = await readFile(tableFile);
+  const tableQuery = run(['table', 'get', tableFile, '--section', 'parameters', '--index', '0']);
+  assert.equal(tableQuery.node.rows.length, 2);
+  const cellArgs = ['table', 'set-cell', tableFile, '--section', 'parameters', '--index', '0', '--part', 'body', '--row', '0', '--column', '1', '--text', '420', '--revision', tableQuery.revision];
+  const tablePreview = run([...cellArgs, '--dry-run']);
+  assert.deepEqual(await readFile(tableFile), tableBefore);
+  assert.deepEqual(run(cellArgs).edits, tablePreview.edits);
+  assert.deepEqual(await readFile(tableFile), Buffer.from('# Parameters {#parameters}\n\n| Parameter | Value | Unit |\n| --- | --- | --- |\n| Voltage reference | 420 | V |\n| Sample period | 50 | us |\n'));
+  assert.equal(run(['validate', tableFile]).valid, true);
+  const tableHtmlPath = join(output, 'parameters.html');
+  run(['render', tableFile, '--to', 'html', '--output', tableHtmlPath]);
+  assert.match(await readFile(tableHtmlPath, 'utf8'), /<td>420<\/td>/);
   assert.deepEqual(await readFile(join(root, 'examples/engineering.narudoc')), original);
   console.log(`PASS: authoring scenario; artifacts: ${output}`);
 } finally {

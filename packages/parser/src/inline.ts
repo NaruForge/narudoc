@@ -1,7 +1,7 @@
 import type { Inline } from '@naruforge/narudoc-model';
 
 /** Deliberately small inline dialect; unknown markup remains literal text. */
-export function parseInline(source: string, depth = 0, sourceOffset?: number): Inline[] {
+export function parseInline(source: string, depth = 0, sourceOffset?: number, table = false): Inline[] {
   if (depth > 16) return [{ type: 'text', value: source }];
   const out: Inline[] = [];
   let text = '';
@@ -9,7 +9,7 @@ export function parseInline(source: string, depth = 0, sourceOffset?: number): I
   const flush = () => { if (text) { out.push({ type: 'text', value: text }); text = ''; } };
   for (let i = 0; i < source.length;) {
     const ch = source[i]!;
-    if (ch === '\\' && /[\\`*\[\]()]/.test(source[i + 1] ?? '')) {
+    if (ch === '\\' && (/[\\`*\[\]()]/.test(source[i + 1] ?? '') || (table && source[i + 1] === '|'))) {
       text += source[i + 1]; i += 2; continue;
     }
     if (ch === '`') {
@@ -20,7 +20,7 @@ export function parseInline(source: string, depth = 0, sourceOffset?: number): I
       const marker = source.startsWith('**', i) ? '**' : '*';
       const end = source.indexOf(marker, i + marker.length);
       if (end > i + marker.length) {
-        flush(); out.push({ type: marker === '**' ? 'strong' : 'emphasis', children: parseInline(source.slice(i + marker.length, end), depth + 1, sourceOffset === undefined ? undefined : sourceOffset + i + marker.length) });
+        flush(); out.push({ type: marker === '**' ? 'strong' : 'emphasis', children: parseInline(source.slice(i + marker.length, end), depth + 1, sourceOffset === undefined ? undefined : sourceOffset + i + marker.length, table) });
         i = end + marker.length; continue;
       }
     }
@@ -38,7 +38,9 @@ export function parseInline(source: string, depth = 0, sourceOffset?: number): I
         }
       }
       if (labelEnd > i + 1 && linkEnd !== -1) {
-        flush(); out.push({ type: 'link', url: source.slice(labelEnd + 2, linkEnd), children: [{ type: 'text', value: source.slice(i + 1, labelEnd) }],
+        const label = source.slice(i + 1, labelEnd);
+        const value = table ? label.replace(/(\\+)\|/g, (_, slashes: string) => (slashes.length % 2 ? slashes.slice(1) : slashes) + '|') : label;
+        flush(); out.push({ type: 'link', url: source.slice(labelEnd + 2, linkEnd), children: [{ type: 'text', value }],
           ...(sourceOffset === undefined ? {} : { urlRange: { start: sourceOffset + labelEnd + 2, end: sourceOffset + linkEnd } }) });
         i = linkEnd + 1; continue;
       }

@@ -1,6 +1,7 @@
 import { ID_PATTERN, NaruError, validKey, wellFormed, type DocumentSnapshot, type EditPlan, type Operation, type TextEdit } from '@naruforge/narudoc-model';
 import { parseDocument } from '@naruforge/narudoc-parser';
-import { getById, getSection } from './query.js';
+import { getById, getSection, getTable } from './query.js';
+import { readTableInput, tableCellText, tableSource } from './table-input.js';
 import { assertValid } from './validation.js';
 import { applyTextEdits, minimalEdit } from './patch.js';
 import { internalReferences } from './references.js';
@@ -40,6 +41,24 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
   const source = doc.source;
   let edits: TextEdit[];
   switch (operation.type) {
+    case 'insertTable': {
+      const input = readTableInput({ headers: operation.headers, rows: operation.rows });
+      const section = getSection(doc, operation.sectionId);
+      let end = doc.blocks.indexOf(section.heading) + 1;
+      while (end < doc.blocks.length && doc.blocks[end]!.type !== 'heading') end++;
+      const point = doc.blocks[end - 1]!.range.end, next = doc.blocks[end];
+      const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
+      edits = [{ start: point, end: point, expected: '', text: doc.eol.repeat(2) + tableSource(input, doc.eol) + right }]; break;
+    }
+    case 'setTableCell': {
+      const text = tableCellText(operation.text);
+      const table = getTable(doc, operation.sectionId, operation.tableIndex);
+      if (!['header', 'body'].includes(operation.part) || !Number.isSafeInteger(operation.row) || operation.row < 0 || (operation.part === 'header' && operation.row !== 0)) throw new NaruError('NARU_ARGUMENT', 'Invalid table part/row; header row must be zero.');
+      const row = operation.part === 'header' ? table.header : table.rows[operation.row];
+      if (!row || !Number.isSafeInteger(operation.column) || operation.column < 0 || !row.cells[operation.column]) throw new NaruError('NARU_TARGET', 'Cell coordinates are out of range.');
+      const range = row.cells[operation.column]!.contentRange;
+      edits = minimalEdit(source, range.start, range.end, text); break;
+    }
     case 'insertDirective': {
       const input = readInsertDirective(operation);
       const section = getSection(doc, input.sectionId);
@@ -113,9 +132,12 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
       if (!Number.isSafeInteger(operation.index) || operation.index < 0 || operation.index > paragraphs.length) throw new NaruError('NARU_TARGET', 'Paragraph insertion index is out of range.');
       if (typeof operation.text !== 'string' || !wellFormed(operation.text)) throw new NaruError('NARU_ARGUMENT', 'Text must be a well-formed Unicode string.');
       const paragraph = operation.text.replace(/\r\n|\r|\n/g, doc.eol);
-      const parsed = parseDocument(paragraph), block = parsed.blocks[0];
-      if (parsed.diagnostics.some(d => d.severity === 'error') || parsed.blocks.length !== 1 ||
-          block?.type !== 'paragraph' || block.range.start !== 0 || block.range.end !== paragraph.length) {
+      const standalone = parseDocument(paragraph), standaloneBlock = standalone.blocks[0];
+      if (standalone.diagnostics.length || standalone.blocks.length !== 1 || standaloneBlock?.type !== 'paragraph' || standaloneBlock.range.start !== 0 || standaloneBlock.range.end !== paragraph.length) throw new NaruError('NARU_ARGUMENT', 'Text must be exactly one paragraph.');
+      const prefix = '# Validation {#validation}\n\n';
+      const parsed = parseDocument(prefix + paragraph), block = parsed.blocks[1];
+      if (parsed.diagnostics.some(d => d.severity === 'error') || parsed.blocks.length !== 2 ||
+          block?.type !== 'paragraph' || block.range.start !== prefix.length || block.range.end !== prefix.length + paragraph.length) {
         throw new NaruError('NARU_ARGUMENT', 'Text must be exactly one paragraph without surrounding blank lines.');
       }
       const target = paragraphs[operation.index];
@@ -137,9 +159,12 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
       }
       if (!Number.isInteger(operation.index) || operation.index < 0 || !direct[operation.index]) throw new NaruError('NARU_TARGET', 'Paragraph index is out of range.');
       const replacement = operation.text.replace(/\r\n|\r|\n/g, doc.eol);
-      const parsed = parseDocument(replacement), block = parsed.blocks[0];
+      const standalone = parseDocument(replacement), standaloneBlock = standalone.blocks[0];
+      if (standalone.diagnostics.length || standalone.blocks.length !== 1 || standaloneBlock?.type !== 'paragraph' || standaloneBlock.range.start !== 0 || standaloneBlock.range.end !== replacement.length) throw new NaruError('NARU_ARGUMENT', 'Replacement must be exactly one paragraph.');
+      const prefix = '# Validation {#validation}\n\n';
+      const parsed = parseDocument(prefix + replacement), block = parsed.blocks[1];
       if (parsed.diagnostics.some(d => d.severity === 'error')) throw new NaruError('NARU_ARGUMENT', 'Invalid paragraph syntax.', parsed.diagnostics);
-      if (parsed.blocks.length !== 1 || block?.type !== 'paragraph' || block.range.start !== 0 || block.range.end !== replacement.length) throw new NaruError('NARU_ARGUMENT', 'Replacement must be exactly one paragraph without surrounding blank lines.');
+      if (parsed.blocks.length !== 2 || block?.type !== 'paragraph' || block.range.start !== prefix.length || block.range.end !== prefix.length + replacement.length) throw new NaruError('NARU_ARGUMENT', 'Replacement must be exactly one paragraph without surrounding blank lines.');
       const target = direct[operation.index]!;
       edits = minimalEdit(source, target.range.start, target.range.end, replacement); break;
     }
@@ -178,5 +203,14 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
   }
   const next = parseDocument(applyTextEdits(source, edits));
   assertValid(next);
+  if (operation.type === 'setTableCell') {
+    const before = getTable(doc, operation.sectionId, operation.tableIndex), after = getTable(next, operation.sectionId, operation.tableIndex);
+    const rows = [before.header, ...before.rows], nextRows = [after.header, ...after.rows];
+    if (rows.length !== nextRows.length || rows.some((row, i) => row.cells.length !== nextRows[i]!.cells.length || row.cells.some((cell, j) => {
+      const expected = i === (operation.part === 'header' ? 0 : operation.row + 1) && j === operation.column ? operation.text : source.slice(cell.contentRange.start, cell.contentRange.end);
+      const range = nextRows[i]!.cells[j]!.contentRange;
+      return next.source.slice(range.start, range.end) !== expected;
+    }))) throw new NaruError('NARU_ARGUMENT', 'Cell edit changes table boundaries.');
+  }
   return { baseSource: source, edits, next };
 }

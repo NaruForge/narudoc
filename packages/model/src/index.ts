@@ -13,6 +13,10 @@ export interface Heading extends Base {
 export interface Paragraph extends Base { type: 'paragraph'; inline: Inline[] }
 export interface List extends Base { type: 'list'; ordered: boolean; start: number; items: Inline[][] }
 export interface Code extends Base { type: 'code'; language: string; value: string }
+export interface TableCell extends Base { contentRange: Range; inline: Inline[] }
+export interface TableRow extends Base { cells: TableCell[] }
+export interface Table extends Base { type: 'table'; header: TableRow; separatorRange: Range; rows: TableRow[] }
+export interface TableInput { headers: string[]; rows: string[][] }
 export type DirectiveBodyBlock = Paragraph | List | Code;
 /** Authoring inputs have no source ranges; the parser assigns ranges after insertion. */
 export type DirectiveChildInput =
@@ -25,13 +29,15 @@ export interface Directive extends Base {
   type: 'directive'; name: string; id?: string; attributes: Attribute[]; children: DirectiveBodyBlock[]; headerEnd: number;
 }
 export interface Metadata extends Base { type: 'metadata'; attributes: Attribute[] }
-export type Block = Heading | Paragraph | List | Code | Directive | Metadata;
+export type Block = Heading | Paragraph | List | Code | Directive | Metadata | Table;
 export interface DocumentSnapshot {
   source: string; blocks: Block[]; diagnostics: Diagnostic[]; eol: '\n' | '\r\n' | '\r';
 }
 export interface TextEdit extends Range { text: string; expected: string }
 export interface Section extends Range { heading: Heading; parentStart: number | null }
 export type Operation =
+  | (TableInput & { type: 'insertTable'; sectionId: string })
+  | { type: 'setTableCell'; sectionId: string; tableIndex: number; part: 'header' | 'body'; row: number; column: number; text: string }
   | InsertDirectiveOperation
   | { type: 'renameId'; id: string; newId: string }
   | { type: 'setHeadingTitle'; id: string; title: string }

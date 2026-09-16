@@ -4,6 +4,7 @@ function groups(block: Block): Inline[][] {
   switch (block.type) {
     case 'heading': case 'paragraph': return [block.inline];
     case 'list': return block.items;
+    case 'table': return [block.header, ...block.rows].flatMap(row => row.cells.map(cell => cell.inline));
     default: return [];
   }
 }

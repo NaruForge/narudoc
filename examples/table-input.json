@@ -1,0 +1,4 @@
+{
+  "headers": ["Parameter", "Value", "Unit"],
+  "rows": [["Voltage reference", "400", "V"], ["Sample period", "50", "us"]]
+}
