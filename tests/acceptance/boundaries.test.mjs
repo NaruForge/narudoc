@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyArchitecture } from '../../scripts/verify-architecture.mjs';
-import { verifyGuide, verifyPractice } from '../../scripts/verify-guide.mjs';
+import { practiceCommands, verifyGuide, verifyPractice } from '../../scripts/verify-guide.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 test('all workspace packages, recursive source and actual guide links/map pass', async () => {
@@ -65,6 +65,8 @@ test('architecture mutations fail for nested globals, dynamic Node import, deep 
 });
 test('broken local links, anchors, missing map coverage and README command drift fail', async t => {
   const dir = await fixture(t), readmeFile = join(dir, 'README.md'), readme = await readFile(readmeFile, 'utf8');
+  assert.throws(() => practiceCommands(readme.replace('new practice.narudoc', 'new ../outside.narudoc')), /isolated document/);
+  assert.throws(() => practiceCommands(readme.replace('--output practice.html', '--output ../outside.html')), /stay isolated/);
   await writeFile(readmeFile, readme + '\n[missing](docs/missing.md)\n'); await assert.rejects(verifyGuide(dir), /broken link/);
   await writeFile(readmeFile, readme + '\n[missing](docs/cli.md#absent-heading)\n'); await assert.rejects(verifyGuide(dir), /missing anchor/);
   await writeFile(readmeFile, readme);

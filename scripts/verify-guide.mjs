@@ -34,7 +34,12 @@ export function practiceCommands(readme) {
     if (!/^pnpm exec narudoc /.test(line) || /[;&|`$<>]/.test(line)) throw new Error(`Unsupported practice command: ${line}`);
     const tail = line.slice('pnpm exec narudoc '.length), matches = [...tail.matchAll(/"(?:[^"\\]|\\.)*"|[^\s"]+/g)];
     if (matches.map(match => match[0]).join(' ') !== tail) throw new Error(`Unsupported practice quoting: ${line}`);
-    return matches.map(match => match[0].startsWith('"') ? JSON.parse(match[0]) : match[0]);
+    const args = matches.map(match => match[0].startsWith('"') ? JSON.parse(match[0]) : match[0]);
+    const width = args[0] === 'paragraph' ? 2 : 1, command = args.slice(0, width).join(' ');
+    if (!['new', 'paragraph insert', 'paragraph replace', 'get', 'validate', 'render'].includes(command) || args[width] !== 'practice.narudoc') throw new Error(`Practice must address only its isolated document: ${line}`);
+    const output = args.indexOf('--output');
+    if (output >= 0 && args[output + 1] !== 'practice.html') throw new Error(`Practice output must stay isolated: ${line}`);
+    return args;
   });
 }
 export async function verifyGuide(root = rootDefault) {
