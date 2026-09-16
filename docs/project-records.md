@@ -5,7 +5,7 @@
 ## Provider와 적용 범위
 
 - Work Item provider: **GitHub** 하나만 사용한다.
-- 저장소와 Issue 원본: [NaruForge/narudoc](https://github.com/NaruForge/narudoc), [Issues](https://github.com/NaruForge/narudoc/issues).
+- 저장소와 Issue 원본: [NaruForge/NaruDoc](https://github.com/NaruForge/NaruDoc), [Issues](https://github.com/NaruForge/NaruDoc/issues).
 - lifecycle 원본: [NaruDoc Project #8](https://github.com/users/NaruForge/projects/8)의 `Status` 필드. 저장소 전용 [Work items board](https://github.com/users/NaruForge/projects/8/views/1)를 사용한다.
 - Project owner: `NaruForge` 개인 계정. Project ID: `PVT_kwHOAmTnZc4BjpTv`. Status field ID: `PVTSSF_lAHOAmTnZc4BjpTvzhic2_M`.
 - 2026-09-16 사용자 승인에 따라 Project·board·Status·label·Issue Form을 설정하고, 자동화는 WorkNaru-dev와 같은 동작으로 맞췄다. 아래 운영 기준을 따른다. 이후 원격 설정 변경에는 해당 작업의 승인 범위를 확인한다.
@@ -82,10 +82,10 @@ Project에는 다음 두 native workflow만 활성화한다.
 
 | Workflow | 조건과 동작 |
 |---|---|
-| `Auto-add to project` | 저장소 `NaruForge/narudoc`, 필터 `is:issue is:open`. 새로 생성되거나 수정되어 조건을 만족하는 Issue를 이 Project에 추가한다. |
+| `Auto-add to project` | 저장소 `NaruForge/NaruDoc`, 필터 `is:issue is:open`. 새로 생성되거나 수정되어 조건을 만족하는 Issue를 이 Project에 추가한다. |
 | `Item added to project` | Project에 `issue` 또는 `pull request`가 추가되면 `Status = Inbox`를 지정한다. 자동 추가 대상은 위 필터에 따라 Issue로 한정한다. |
 
-이 설정은 2026-09-16 확인한 [WorkNaru-dev Project](https://github.com/users/NaruForge/projects/7/workflows)의 자동화를 기준으로 하되 저장소 대상은 `NaruForge/narudoc`으로 지정했다. 위 표가 NaruDoc의 운영 규약이며 WorkNaru-dev를 다시 읽거나 설정을 지속적으로 동기화할 필요는 없다.
+이 설정은 2026-09-16 확인한 [WorkNaru-dev Project](https://github.com/users/NaruForge/projects/7/workflows)의 자동화를 기준으로 하되 저장소 대상은 NaruDoc으로 지정했다. 위 표가 NaruDoc의 운영 규약이며 WorkNaru-dev를 다시 읽거나 설정을 지속적으로 동기화할 필요는 없다.
 
 `Auto-add sub-issues to project`, `Auto-archive items`, `Auto-close issue`, `Code changes requested`, `Code review approved`, `Item closed`, `Item reopened`, `Pull request linked to issue`, `Pull request merged`는 비활성화한다. 특히 종료·병합 이벤트만으로 `Done`으로 보내지 않는다. 이후 단계 변경과 종료 처분은 위 검증 규칙에 따라 처리한다. 자동화가 실패하면 중복 상태 원본을 만들지 말고 native 설정과 해당 Issue를 확인한다.
 
@@ -117,12 +117,12 @@ Project에는 다음 두 native workflow만 활성화한다.
 
 | 대상 | 적용한 설정 |
 |---|---|
-| Project | `NaruForge` 개인 계정 소유의 비공개 `NaruDoc` Project #8. `NaruForge/narudoc` 저장소에만 연결. |
-| Board view | `Work items`, board layout, filter `repo:NaruForge/narudoc is:issue`, group by `Status`. |
+| Project | `NaruForge` 개인 계정 소유의 비공개 `NaruDoc` Project #8. `NaruForge/NaruDoc` 저장소에만 연결. |
+| Board view | `Work items`, board layout, filter `repo:NaruForge/NaruDoc is:issue`, group by `Status`. |
 | Field | `Status` 옵션은 `Inbox`, `Backlog`, `Ready`, `In progress`, `In review`, `Done` 순서. |
 | Workflow | 열린 NaruDoc Issue 자동 추가와 추가 항목의 `Inbox` 초기화만 활성화. 세부 조건은 위 표를 따른다. |
 | Labels | 아래 4개 추가. 기존 10개 label과 기존 `bug`의 이름·색·설명을 보존. |
-| Issue Forms | `.github/ISSUE_TEMPLATE/`의 승인된 파일 4개를 default branch `main`에 게시. [게시 commit](https://github.com/NaruForge/narudoc/commit/0bb7ccd5a546a1e2ebc2a4340fa12706a974e11f). |
+| Issue Forms | `.github/ISSUE_TEMPLATE/`의 승인된 파일 4개를 default branch `main`에 게시. [게시 commit](https://github.com/NaruForge/NaruDoc/commit/0bb7ccd5a546a1e2ebc2a4340fa12706a974e11f). |
 | 기타 설정 | 저장소 공개 범위, Issues 활성화, 권한, 보호 규칙, Milestone은 변경하지 않음. |
 
 | 새 label | 색상 | Description |
@@ -132,7 +132,7 @@ Project에는 다음 두 native workflow만 활성화한다.
 | `blocked` | `B60205` | Work cannot proceed; see issue context |
 | `needs-triage` | `FBCA04` | Classification or required information needs review |
 
-Idea, Work, Bug 양식의 기본 label은 각각 `idea`, `work`, `bug`와 공통 `needs-triage`다. [양식 선택 화면](https://github.com/NaruForge/narudoc/issues/new/choose)과 각 양식의 실제 입력·기본 label을 읽기 전용으로 확인했다. 자유 입력은 `blank_issues_enabled: true`로 유지한다. `projects`, 자동 담당자, 조직 Issue type 기본값은 설정하지 않는다. 필요한 label이 원격에 없으면 양식의 기본값만으로 생성되지 않으므로, 향후 양식을 변경하거나 게시할 때 label과 설정을 확인한다.
+Idea, Work, Bug 양식의 기본 label은 각각 `idea`, `work`, `bug`와 공통 `needs-triage`다. [양식 선택 화면](https://github.com/NaruForge/NaruDoc/issues/new/choose)과 각 양식의 실제 입력·기본 label을 읽기 전용으로 확인했다. 자유 입력은 `blank_issues_enabled: true`로 유지한다. `projects`, 자동 담당자, 조직 Issue type 기본값은 설정하지 않는다. 필요한 label이 원격에 없으면 양식의 기본값만으로 생성되지 않으므로, 향후 양식을 변경하거나 게시할 때 label과 설정을 확인한다.
 
 프로젝트 기록 파일과 양식의 커밋·push·PR 병합은 사용자 승인에 따라 수행한다. 이후 커밋·push·게시에는 해당 작업의 승인 범위를 확인한다. 인증·권한 갱신이나 새로운 provider 활성화 역시 provider 선택에 포함되지 않는다.
 
