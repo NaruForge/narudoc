@@ -1,4 +1,4 @@
-# CLI 사용과 자동화 계약 · v0.0.1
+# CLI 사용과 자동화 계약 · v0.0.2
 
 이 문서는 현재 CLI의 명령과 입출력 계약을 설명한다. 장기 목표는 [제품 비전](product.md), 문법·편집 의미·크기 제한은 [파일 계약](format.md), 저장 보장은 [아키텍처](architecture.md)를 따른다. API와 문법은 실험 단계다.
 
@@ -29,7 +29,7 @@
 
 읽기 명령은 `FILE` 대신 `-` 또는 `--stdin`을 사용할 수 있다. 기존 문서 편집과 `new`는 실제 파일 경로가 필요하다. `--to`는 `html`만 지원한다. `new`와 `render --output`은 기존 파일을 덮어쓰지 않는다.
 
-`--help` 또는 인자 없는 실행은 도움말 텍스트를 stdout에 출력한다. `--help --json`도 텍스트다. `--version`은 버전 텍스트, `--version --json`은 `{"version":"0.0.1"}`을 출력한다. 이 특수 응답들은 일반 문서 envelope를 사용하지 않는다.
+`--help` 또는 인자 없는 실행은 도움말 텍스트를 stdout에 출력한다. `--help --json`도 텍스트다. `--version`은 버전 텍스트, `--version --json`은 `{"version":"0.0.2"}`을 출력한다. 이 특수 응답들은 일반 문서 envelope를 사용하지 않는다.
 
 ## JSON 응답
 
@@ -58,7 +58,9 @@ Range는 `{ start, end }`이고 UTF-16 code unit 기준 `[start, end)`이다. �
 
 진단은 `{ code, message, severity, range }`이며 `severity`는 `error` 또는 `warning`이다. 사람이 읽는 메시지보다 코드·severity·종료 코드를 기준으로 분기한다. Block·inline의 현재 필드와 타입은 [공통 모델](../packages/model/src/index.ts), outline 결과는 [조회 구현](../packages/core/src/query.ts)과 대응한다. 임의의 JSON을 안정된 독립 파일 포맷으로 저장하는 계약은 아니다.
 
-파서 생성 모델의 heading에는 `idRange`(ID 문자만, `{#`·`}` 제외), inline link에는 `urlRange`(목적 URL만, 괄호 제외)가 추가된다. `inspect`와 `get` JSON에도 나타날 수 있는 선택적 필드이며 기존 필드는 유지한다. 범위는 전체 문서 원문 기준 UTF-16이다. 기존에 저장한 모델을 편집 입력으로 재사용하지 말고 현재 원문을 다시 파싱한다. `parseInline` 단독 호출은 기본적으로 위치 필드를 추가하지 않으며 세 번째 인자 `sourceOffset`을 제공하면 해당 원문 위치를 기준으로 `urlRange`를 계산한다.
+파서 생성 모델의 heading에는 `idRange`(ID 문자만, `{#`·`}` 제외), inline link에는 `urlRange`(목적 URL만, 괄호 제외)가 선택적 필드로 제공된다. 범위는 전체 문서 원문 기준 UTF-16이다. 기존에 저장한 모델을 편집 입력으로 재사용하지 말고 현재 원문을 다시 파싱한다. `parseInline` 단독 호출은 기본적으로 위치 필드를 추가하지 않으며 세 번째 인자 `sourceOffset`을 제공하면 해당 원문 위치를 기준으로 `urlRange`를 계산한다.
+
+**0.0.2의 breaking change:** `inspect.blocks` 및 directive를 조회한 `get.node`에서 `body: Inline[]`가 제거되고 `children: DirectiveBodyBlock[]`가 제공된다. 자식 타입은 `paragraph | list | code`로 제한되며 비어 있는 본문은 `[]`다. 최상위 blocks에는 자식을 중복 등록하지 않는다. 자식/진단/URL 범위 역시 전체 원문 기준이다. JSON 소비자는 children을 순회하도록 변경하고 저장한 모델은 기존 source를 새 parser로 재파싱해야 한다. 영구 body 호환 계층은 없다. `.narudoc` 파일 자동 변환은 없지만 기존 본문 목록/fence의 해석은 바뀐다. [문법 계약](format.md)을 참고한다. CLI envelope의 `schemaVersion: 1`과 batch 입력은 유지되므로 이 값만으로 모델 호환성을 판단하지 말고 제품 버전도 확인한다.
 
 ## stdout·stderr와 종료 코드
 
@@ -102,7 +104,7 @@ Dry-run은 문서를 읽고 지정한 revision·대상·편집 결과의 유효�
 
 ## ID와 내부 참조 변경
 
-`id rename FILE --id OLD --new-id NEW`는 heading 또는 directive의 ID와 파서가 인식한 같은 문서 내부 링크를 하나의 operation으로 변경한다. 제목/문단/목록/directive 본문 및 강조 안의 링크가 포함된다. 비교는 기존 검증과 같은 `decodeURIComponent` 규칙이다. 예를 들어 `#REQ%2D001`도 `REQ-001`을 가리키므로 변경 대상이다. 변경된 목적지는 `#NEW`로 기록하며 링크 라벨은 유지한다.
+`id rename FILE --id OLD --new-id NEW`는 heading 또는 directive의 ID와 파서가 인식한 같은 문서 내부 링크를 하나의 operation으로 변경한다. 제목/문단/목록/directive 자식 문단·목록 및 강조 안의 링크가 포함된다. 자식 code의 가짜 링크는 validation과 rename 모두 무시한다. 비교는 기존 검증과 같은 `decodeURIComponent` 규칙이다. 예를 들어 `#REQ%2D001`도 `REQ-001`을 가리키므로 변경 대상이다. 변경된 목적지는 `#NEW`로 기록하며 링크 라벨은 유지한다.
 
 ```sh
 pnpm exec narudoc id rename examples/engineering.narudoc --id REQ-001 --new-id REQ-CTRL-001 --dry-run --json
@@ -180,6 +182,6 @@ Dry-run 결과를 검토한 뒤 실제 편집을 실행한다. 그 사이 원본
 
 ## 버전과 호환성 변경
 
-현재 제품·패키지 버전 `0.0.1`, 문법 문서의 대상 버전, CLI JSON의 `schemaVersion: 1`은 서로 다른 의미다. 원본 파일에 별도의 문법 버전 선택 필드는 정의되어 있지 않다. `--version --json`에도 일반 응답의 schemaVersion은 없다.
+현재 제품·패키지 버전 `0.0.2`, 문법 문서의 대상 버전, CLI JSON의 `schemaVersion: 1`은 서로 다른 의미다. 원본 파일에 별도의 문법 버전 선택 필드는 정의되어 있지 않다. `--version --json`에도 일반 응답의 schemaVersion은 없다.
 
 현재 계약은 실험 단계이고 영구적인 하위 호환을 보장하지 않는다. 그렇더라도 문법·ID·API·응답을 변경할 때 기존 문서와 소비자의 영향을 생략하지 않는다. 마이그레이션 필요 여부를 Issue에서 검토하고 변경되는 계약·예제·검증을 같은 PR에서 갱신한다. 사용자 문서를 묵시적으로 다시 작성하지 않는다. 절차 원본은 [프로젝트 기록 규약](project-records.md)이다.

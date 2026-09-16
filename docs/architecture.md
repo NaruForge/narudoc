@@ -34,6 +34,10 @@ HTML은 텍스트·속성을 escape하고 위험 URL을 막는다. raw HTML·코
 
 ## 파서 선택
 
-v0.0.1은 docs/format.md의 좁은 NaruDoc 문법만 구현하는 순수 TypeScript scanner를 사용한다. 앞선 micromark 후보는 범용 Markdown interoperability가 필요해질 때 비교한다. 직접 구현 범위를 CommonMark 전체로 확대하지 않는다. 도구/의존성 선택과 무관하게 snapshot/범위 계약 및 fidelity tests를 유지한다.
+Directive의 본문은 `Paragraph | List | Code` 자식만 가진다. Top-level과 본문은 같은 원문 line table에서 문단·목록·fence scanner를 공유하므로 자식 범위도 전체 문서 UTF-16 위치다. 본문의 heading·metadata는 문단 텍스트이며 재귀 directive는 허용하지 않는다. 코드 scanner가 fence 끝까지 소비한 뒤 directive delimiter를 검사한다. `DocumentSnapshot.blocks`는 최상위만 보유한다.
+
+Core validation과 rename은 같은 순회에서 자식 문단·목록의 실제 링크를 한 번씩 처리하며 code는 제외한다. Renderer는 재파싱 없이 자식을 각각 `<p>`, `<ul>/<ol>`, `<pre><code>`로 투영한다. Section 문단 index와 속성·섹션 원문 편집 계약은 유지한다. `body → children` 공개 모델 변경과 제한된 자식 경계의 대안은 [ADR 0006](adr/0006-directive-body-blocks.md)에 제안한다. 이행과 본문 해석 변경은 [문법 계약](format.md)에 명시한다.
+
+v0.0.2는 docs/format.md의 좁은 NaruDoc 문법만 구현하는 순수 TypeScript scanner를 사용한다. 앞선 micromark 후보는 범용 Markdown interoperability가 필요해질 때 비교한다. 직접 구현 범위를 CommonMark 전체로 확대하지 않는다. 도구/의존성 선택과 무관하게 snapshot/범위 계약 및 fidelity tests를 유지한다.
 
 현재 방식을 유지할지 판단할 대안과 재검토 조건은 [제한 문법 parser ADR](adr/0003-bounded-parser.md)에 정리한다.

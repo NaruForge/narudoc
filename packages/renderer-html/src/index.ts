@@ -28,7 +28,7 @@ function renderBlock(block: Block): string {
       const tag = block.ordered ? 'ol' : 'ul';
       return `<${tag}${block.ordered ? ` start="${block.start}"` : ''}>${block.items.map(item => `<li>${renderInline(item)}</li>`).join('')}</${tag}>`;
     }
-    case 'directive': return `<aside${block.id === undefined ? '' : ` id="${escapeHtml(block.id)}"`} data-kind="${escapeHtml(block.name)}"><strong>${escapeHtml(block.name)}</strong><dl>${block.attributes.filter(a => a.key !== 'id').map(a => `<dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd>`).join('')}</dl><p>${renderInline(block.body)}</p></aside>`;
+    case 'directive': return `<aside${block.id === undefined ? '' : ` id="${escapeHtml(block.id)}"`} data-kind="${escapeHtml(block.name)}"><strong>${escapeHtml(block.name)}</strong><dl>${block.attributes.filter(a => a.key !== 'id').map(a => `<dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd>`).join('')}</dl>${block.children.map(renderBlock).join('')}</aside>`;
   }
 }
 /** Pure projection. No filesystem, network, editor, or raw HTML execution. */

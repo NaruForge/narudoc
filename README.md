@@ -8,11 +8,13 @@ NaruDoc은 사람이 읽는 `.narudoc` 텍스트를 원본으로 사용한다. �
 
 장기적으로 설계서·요구사항 같은 기술 문서를 사람이 시각적 편집기로 작성하고, AI와 자동화가 같은 원본을 화면 없이 조작하는 경험을 지향한다. 핵심 문서 작업과 검증은 공통 엔진을 사용하며 특정 편집기나 호스트에 종속되지 않아야 한다. 대상 사용자, 제품 원칙과 성공 기준은 [제품 비전](docs/product.md)에 정리한다. 시각적 편집기는 아직 구현 범위에 포함되지 않는다.
 
-## MVP 1 · v0.0.1
+## MVP 2 첫 단계 · v0.0.2
 
 현재 제공 범위는 CLI 조회, 제목·섹션·문단·directive 편집, validation, HTML 출력이다. GUI, PDF, MCP, 실시간 협업, registry 공개 배포는 포함하지 않는다. API와 문법은 실험 단계이며 전체 CommonMark 호환이나 Word 대체를 주장하지 않는다. 구현·검증 근거는 [MVP Issue #2](https://github.com/NaruForge/narudoc/issues/2)에서 확인한다.
 
 여러 의미 편집은 [단일 문서 배치](docs/cli.md#단일-문서-배치-편집)로 순차 검증한 뒤 한 번에 저장할 수 있다. 중간 편집이 실패하면 앞선 부분 결과도 저장하지 않는다.
+
+Generic directive 본문에 여러 문단·평면 목록·코드 블록을 함께 담을 수 있다. [예제](examples/directive-blocks.narudoc)와 [문법·이행 안내](docs/format.md)를 참고한다. 0.0.2는 `body → children` 공개 모델/조회 JSON의 breaking change이며 기존 source를 새 parser로 재파싱해야 한다.
 
 [ID 변경](docs/cli.md#id와-내부-참조-변경)은 정의와 같은 문서의 내부 링크를 함께 수정한다. 원문 전체에서 같은 문자열을 치환하지 않아 코드·외부 링크·무관한 텍스트를 유지한다.
 
