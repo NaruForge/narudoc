@@ -94,6 +94,17 @@ test('no-op and independent fidelity bytes for BOM/EOL/EOF, Korean composition a
   expect(await page.evaluate(() => window.documentExecuted)).toBeUndefined(); await expect(page.locator('a[href^="javascript:"]')).toHaveCount(0);
 });
 test('missing IDs and invalid documents stay visible and read only with diagnostics', async ({ page }) => {
-  await writeFile(file, '# Missing ID\n\nKeep me.\n\n# A {#a}\n\n# Duplicate {#a}\n\n<script>window.bad=true</script>');
+  await writeFile(file, '# Missing ID\n\nKeep me.\n\n# A {#section}\n\n# Duplicate {#section}\n\n<script>window.bad=true</script>');
   await page.locator('#reload').click(); await expect(page.locator('#content')).toContainText('Keep me.'); await expect(page.locator('#diagnostics')).toContainText('error'); await expect(page.locator('#save')).toBeDisabled(); expect(await page.evaluate(() => window.bad)).toBeUndefined();
+  await expect(page.locator('#section')).toHaveCount(1); await expect(page.locator('#content h1').nth(1)).toHaveText('A');
+});
+test('outline tracks edited titles and scrolls mixed ID/read-only headings correctly', async ({ page }) => {
+  const fixture = '# Missing ID\n\n' + Array.from({ length: 30 }, () => 'Read only paragraph.\n\n').join('') + '# Editable {#editable}\n\nText';
+  await writeFile(file, fixture); await page.locator('#reload').click();
+  await expect(page.getByRole('navigation').getByRole('button', { name: 'Editable', exact: true })).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: 'Editable', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'heading editable 0', exact: true })).toBeInViewport();
+  await select(page, 'heading', 'editable', 0, 'Editable'); await page.keyboard.type('Changed');
+  await expect(page.getByRole('navigation').getByRole('button', { name: 'Changed', exact: true })).toHaveCount(1);
+  await expect(page.locator('#section option')).toHaveText('Changed');
 });

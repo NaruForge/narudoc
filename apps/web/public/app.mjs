@@ -16,6 +16,12 @@ async function api(route, input) {
 }
 function update() {
   if (!session) return;
+  outline(session.snapshot).forEach((item, index) => {
+    const button = $('outline').children[index];
+    if (button) button.textContent = item.title + (item.id ? '' : ' (read only: missing ID)');
+    const option = [...$('section').options].find(o => o.value === item.id);
+    if (option) option.textContent = item.title;
+  });
   $('state').textContent = busy ? 'Working…' : session.drafts.size ? 'Unsaved invalid draft' : dirty() ? 'Unsaved changes' : 'Saved';
   $('save').disabled = busy || !session.valid;
   $('export').disabled = busy || !session.valid;
@@ -34,6 +40,8 @@ function project() {
       const wrapper = document.createElement('div'); wrapper.className = 'readonly-block';
       if (block.type === 'metadata') { const pre = document.createElement('pre'); pre.textContent = session.source.slice(block.range.start, block.range.end); wrapper.append(pre); }
       else wrapper.innerHTML = renderBlockHtml(block);
+      // Document IDs belong to the source, not the application's control namespace.
+      wrapper.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
       $('content').append(wrapper);
     }
     $('content').onclick = event => { if (event.target.closest('a')) event.preventDefault(); };
@@ -45,7 +53,7 @@ function project() {
     const button = document.createElement('button'); button.textContent = item.title + (item.id ? '' : ' (read only: missing ID)');
     button.addEventListener('click', () => {
       if (item.id) $('section').value = item.id;
-      const heading = [...$('content').children].filter(el => /^H[1-6]$/.test(el.tagName))[items.indexOf(item)];
+      const heading = $('content').querySelectorAll('h1,h2,h3,h4,h5,h6')[items.indexOf(item)];
       heading?.scrollIntoView({ block: 'center' });
     }); $('outline').append(button);
     if (item.id) { const option = document.createElement('option'); option.value = item.id; option.textContent = item.title; $('section').append(option); }
