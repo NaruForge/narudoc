@@ -42,6 +42,11 @@ test('architecture mutations fail for nested globals, dynamic Node import, deep 
     await writeFile(bad, source); await assert.rejects(verifyArchitecture(dir), error, source);
   }
   await rm(nested, { recursive: true });
+  const typeA = join(dir, 'packages/model/src/type-a.ts'), typeB = join(dir, 'packages/model/src/type-b.ts');
+  await writeFile(typeA, 'export interface A {}\nexport { type B } from "./type-b.js";');
+  await writeFile(typeB, 'export interface B {}\nexport { type A } from "./type-a.js";');
+  await verifyArchitecture(dir); // Explicit type-only re-export cycles have no runtime edge.
+  await rm(typeA); await rm(typeB);
   const modelFile = join(dir, 'packages/model/package.json'), model = JSON.parse(await readFile(modelFile, 'utf8'));
   await writeFile(modelFile, JSON.stringify({ ...model, dependencies: { '@naruforge/narudoc': 'workspace:*' } }));
   await assert.rejects(verifyArchitecture(dir), /forbidden dependency/);

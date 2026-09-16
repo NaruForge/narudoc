@@ -62,6 +62,7 @@ function imports(source, file, pure) {
   const globals = new Set(['document', 'window', 'localStorage', 'sessionStorage', 'navigator', 'fetch', 'XMLHttpRequest', 'WebSocket', 'process', 'Buffer', 'require']);
   const runtime = node => {
     if (ts.isImportDeclaration(node)) return !node.importClause?.isTypeOnly && (!node.importClause?.namedBindings || !ts.isNamedImports(node.importClause.namedBindings) || !!node.importClause.name || node.importClause.namedBindings.elements.some(e => !e.isTypeOnly));
+    if (ts.isExportDeclaration(node)) return !node.isTypeOnly && (!node.exportClause || !ts.isNamedExports(node.exportClause) || node.exportClause.elements.some(e => !e.isTypeOnly));
     return !node.isTypeOnly;
   };
   function visit(node) {
