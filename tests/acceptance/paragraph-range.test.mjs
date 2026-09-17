@@ -27,6 +27,14 @@ test('join is restricted to adjacent direct paragraphs and protected content sta
   assert.throws(() => apply({ type: 'replaceParagraphRange', id: 'control', from: { index: 0, offset: 0 }, to: { index: 0, offset: 0 }, expected: '', text: '# Not a paragraph' }), { code: 'NARU_ARGUMENT' });
 });
 
+test('cross-paragraph protection only examines selected inline content', () => {
+  const protectedAfterSelection = '# A {#a}\n\nP0 plain.\n\nprefix text [protected](#a) suffix';
+  const operation = { type: 'replaceParagraphRange', id: 'a', from: { index: 0, offset: 3 }, to: { index: 1, offset: 11 }, expected: 'plain.\nprefix text', text: 'merged' };
+  const changed = planOperation(parseDocument(protectedAfterSelection), operation).next.source;
+  assert.equal(changed, '# A {#a}\n\nP0 merged [protected](#a) suffix');
+  assert.throws(() => planOperation(parseDocument(protectedAfterSelection), { ...operation, to: { index: 1, offset: 13 }, expected: 'plain.\nprefix text p' }), { code: 'NARU_ARGUMENT' });
+});
+
 test('range operations are atomic in a sequence and batch parity is exact', () => {
   const operations = [
     { type: 'splitParagraph', id: 'control', index: 0, offset: 5, expected: 'Alpha beta gamma.' },

@@ -106,3 +106,34 @@ test('save acknowledgement rebases semantic journal without discarding document 
   assert.equal(session.redoGesture(), true); assert.equal(session.source, saved);
   assert.equal(planSequence(parseDocument(saved), session.operations).next.source, saved);
 });
+
+test('split, join and boundary insertion replay exactly after save undo and redo', () => {
+  const cases = [
+    ['# Control {#control}\n\nAlpha.', { type: 'splitParagraph', id: 'control', index: 0, offset: 2, expected: 'Alpha.' }],
+    ['# Control {#control}\n\nA.\n\nB.', { type: 'joinParagraph', id: 'control', index: 0, expected: 'A.\nB.' }],
+    ['# Control {#control}\n\nA.', { type: 'insertParagraph', id: 'control', index: 1, text: 'Tail' }],
+  ];
+  for (const [original, operation] of cases) {
+    const session = new SourceSession(original, { revision: 'disk-r1', historyLimit: 20 });
+    session.apply(operation); const saved = session.source;
+    session.acknowledgeSave(saved, 'disk-r2');
+    assert.equal(session.undoGesture(), true); assert.equal(session.source, original);
+    assert.equal(planSequence(parseDocument(saved), session.operations).next.source, session.source);
+    assert.equal(session.redoGesture(), true); assert.equal(session.source, saved);
+    assert.equal(planSequence(parseDocument(saved), session.operations).next.source, session.source);
+  }
+});
+
+test('operations without a byte-exact inverse are explicit document history barriers', () => {
+  const cases = [
+    [source, { type: 'insertDirective', sectionId: 'control', name: 'note', id: 'N', attributes: {}, children: [{ type: 'paragraph', text: 'Note.' }] }],
+    ['# Control {#control}\n\nA.\n\n:::note\nid: N\n\nNote.\n:::', { type: 'setDirectiveAttribute', id: 'N', key: 'status', value: 'draft' }],
+  ];
+  for (const [original, operation] of cases) {
+    const session = new SourceSession(original, { revision: 'disk-r1', historyLimit: 20 });
+    session.apply(text(0, 'A.', 'Changed.')); assert.equal(session.canUndo, true);
+    session.apply(operation); assert.equal(session.canUndo, false); assert.equal(session.canRedo, false);
+    const saved = session.source; session.acknowledgeSave(saved, 'disk-r2');
+    assert.equal(session.canUndo, false); assert.deepEqual(session.operations, []);
+  }
+});

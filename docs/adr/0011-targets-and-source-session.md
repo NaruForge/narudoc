@@ -20,7 +20,7 @@ Operation은 한 의미 변경, gesture는 한 사용자 의도에 속한 operat
 
 실행 가능한 두 문단 proof는 실제 PM Schema/EditorState/Selection/transaction/history로 단일 문서 projection과 복수 view를 비교한다. 단일 projection은 cross-paragraph selection과 복합 undo를 한 PM 상태에서 표현한다. 복수 view는 두 selection/history를 별도로 조정해야 한다. **다음 자연스러운 문서 편집 확장은 단일 문서 projection을 기준으로 검토한다.** Issue #35의 현재 로컬 파일 편집기는 이 projection을 사용하고, 기존 per-block view는 spike/호환 경로에 남긴다. SourceSession은 어느 projection에서도 Core operation만 받아 source를 소유한다. 이 구현 사실은 사람의 ADR 채택 결정을 대신하지 않는다.
 
-저장 journal은 인접한 동일 inline target/path의 연속 setInlineText를 exact-source 재계획으로 축약하고, 문서 projection의 문단 입력은 `splitParagraph`, `joinParagraph`, `replaceParagraphRange`로 기록한다. 대상 전환·구조 편집·rename·rebase·복합 gesture를 넘지 않는다. Undo 기록은 journal과 별도이며 현재 로컬 파일 편집기는 document gesture history를 사용한다. 성공한 Save는 새 기준 revision과 journal을 rebase하면서 history를 유지하고, 명시적 Reload/SourceSession 교체는 history를 초기화한다.
+저장 journal은 인접한 동일 inline target/path의 연속 setInlineText를 exact-source 재계획으로 축약하고, 문서 projection의 문단 입력은 `splitParagraph`, `joinParagraph`, `replaceParagraphRange`로 기록한다. 대상 전환·구조 편집·rename·rebase·복합 gesture를 넘지 않는다. Undo 기록은 journal과 별도이며 현재 로컬 파일 편집기는 document gesture history를 사용한다. 각 gesture의 의미 역연산은 실제 다음 snapshot에 replay해 이전 source와 byte-for-byte 같은 경우에만 history에 기록한다. 정확한 역연산을 증명하지 못한 구조 form operation은 저장 journal에는 남지만 기존 undo history를 넘지 못하는 장벽이 된다. 성공한 Save는 새 기준 revision과 journal을 rebase하면서 검증된 history를 유지하고, 명시적 Reload/SourceSession 교체는 history를 초기화한다.
 
 새 ID 자동 제안은 향후 Core의 문서 전체 충돌 검사를 재사용하고 새 객체 생성이 성공할 때만 source에 기록해야 한다. 기존 문서를 열 때 ID를 자동 추가하지 않으며 제목 변경은 ID를 바꾸지 않는다. 현재 UI의 명시적 ID 입력과 Core의 중복 거부를 유지한다. 자동 ID UI는 이번 변경 범위가 아니다.
 

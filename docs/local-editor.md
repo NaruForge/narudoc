@@ -20,7 +20,7 @@ pnpm narudoc edit ./examples/visual-fidelity.narudoc
 
 상단은 파일·미저장 상태를, 오른쪽은 공통 validation의 오류와 경고를 표시한다. 오류 draft/composition 중에는 저장과 구조 변경이 차단된다. 문서 자체가 잘못됐다면 읽기 전용 본문과 진단을 보여준다. ID 없는 heading도 읽을 수 있지만 시각 편집 대상이 아니다. 파일 복구가 필요한 경우 외부에서 수정한 뒤 Reload한다.
 
-Save 전까지 디스크는 변하지 않는다. Save 성공 후 새 revision이 기준이 되지만 문서 편집 undo/redo history는 유지된다. 상단 Undo/Redo 버튼 또는 편집 영역에서 Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y를 사용한다. Save 뒤에도 직전 문서 gesture를 되돌린 뒤 다시 Save할 수 있다. Reload·구조 변경에 따른 명시적 session 교체는 history를 초기화한다. 미저장 상태에서 페이지 이탈은 browser 경고를 요청하며, Reload는 draft 폐기 확인을 거친다. 탭 crash/강제 종료에 대한 draft 복구는 없다.
+Save 전까지 디스크는 변하지 않는다. Save 성공 후 새 revision이 기준이 되지만 byte-exact 의미 역연산이 검증된 문서 편집의 undo/redo history는 유지된다. 상단 Undo/Redo 버튼 또는 편집 영역에서 Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y를 사용한다. Save 뒤에도 직전 문서 gesture를 되돌린 뒤 다시 Save할 수 있다. 일부 구조 추가 form이나 새 directive 속성처럼 정확한 역연산을 보장하지 않는 operation은 history에 넣지 않고 기존 history도 넘지 못하게 하는 장벽으로 처리한다. Reload·구조 변경에 따른 명시적 session 교체는 history를 초기화한다. 미저장 상태에서 페이지 이탈은 browser 경고를 요청하며, Reload는 draft 폐기 확인을 거친다. 탭 crash/강제 종료에 대한 draft 복구는 없다.
 
 문단 경계에서 Enter를 누르면 source에 빈 placeholder를 쓰지 않고 잠시 화면 projection에만 빈 문단을 만든다. 그 문단에 실제 텍스트를 입력하면 Core의 `insertParagraph`로 commit되고, 비워 둔 채 남은 draft는 저장할 수 없다. 조합 중인 입력도 같은 session draft 경계를 따르며, 실제 OS IME 동작은 별도 수동 검증 대상이다.
 

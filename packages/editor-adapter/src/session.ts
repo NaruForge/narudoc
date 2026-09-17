@@ -50,7 +50,7 @@ function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, ope
       const left = paragraphText(after, operation.id, operation.index), right = paragraphText(after, operation.id, operation.index + 1);
       return { type: 'joinParagraph', id: operation.id, index: operation.index, expected: left + '\n' + right };
     }
-    case 'joinParagraph': return { type: 'splitParagraph', id: operation.id, index: operation.index, offset: paragraphText(after, operation.id, operation.index).length, expected: paragraphText(after, operation.id, operation.index) };
+    case 'joinParagraph': return { type: 'splitParagraph', id: operation.id, index: operation.index, offset: paragraphText(before, operation.id, operation.index).length, expected: paragraphText(after, operation.id, operation.index) };
     case 'replaceParagraphRange': {
       const beforeParagraphs = paragraphs(before, operation.id), afterParagraphs = paragraphs(after, operation.id);
       const insertedCount = afterParagraphs.length - beforeParagraphs.length + operation.to.index - operation.from.index + 1;
@@ -63,8 +63,12 @@ function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, ope
     case 'insertParagraph': {
       const afterParagraphs = paragraphs(after, operation.id);
       if (afterParagraphs.length < 2) return undefined;
-      const index = operation.index === afterParagraphs.length - 1 ? operation.index - 1 : operation.index;
-      return { type: 'joinParagraph', id: operation.id, index, expected: paragraphText(after, operation.id, index) + '\n' + paragraphText(after, operation.id, index + 1) };
+      if (operation.index < afterParagraphs.length - 1) {
+        const inserted = paragraphText(after, operation.id, operation.index);
+        return { type: 'replaceParagraphRange', id: operation.id, from: { index: operation.index, offset: 0 }, to: { index: operation.index + 1, offset: 0 }, expected: inserted + '\n', text: '' };
+      }
+      const previous = paragraphText(after, operation.id, operation.index - 1), inserted = paragraphText(after, operation.id, operation.index);
+      return { type: 'replaceParagraphRange', id: operation.id, from: { index: operation.index - 1, offset: previous.length }, to: { index: operation.index, offset: inserted.length }, expected: '\n' + inserted, text: '' };
     }
     case 'insertSection': return { type: 'removeSection', id: operation.id };
     case 'insertChildSection': return { type: 'removeSection', id: operation.id };
@@ -77,15 +81,21 @@ function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, ope
   }
 }
 
-function inverseOperations(source: DocumentSnapshot, operations: Operation[]): Operation[] {
+function inverseOperations(source: DocumentSnapshot, operations: Operation[]): Operation[] | undefined {
   let current = source; const inverse: Operation[] = [];
   for (const operation of operations) {
     const plan = planOperation(current, operation);
     const undo = inverseOperation(current, plan.next, operation);
-    if (undo) inverse.unshift(undo);
+    if (!undo) return undefined;
+    inverse.unshift(undo);
     current = plan.next;
   }
-  return inverse;
+  try {
+    return planSequence(current, inverse, { collectSteps: false }).next.source === source.source ? inverse : undefined;
+  } catch (error) {
+    if (error instanceof NaruError) return undefined;
+    throw error;
+  }
 }
 
 /** Pure coordinator. Source/snapshot own meaning; projection drafts never become saved source. */
@@ -173,8 +183,14 @@ export class SourceSession {
     this.selected = null;
     if (this.historyLimit > 0) {
       const inverse = inverseOperations(before.snapshot, operations);
-      this.past.push({ before, after: this.state(), forward: operations, inverse });
-      if (this.past.length > this.historyLimit) this.past.shift();
+      if (inverse) {
+        this.past.push({ before, after: this.state(), forward: operations, inverse });
+        if (this.past.length > this.historyLimit) this.past.shift();
+      } else {
+        // A gesture without a byte-exact semantic inverse is an explicit history barrier.
+        // Its journal remains saveable, but no snapshot-only undo may cross it.
+        this.past = []; this.future = []; this.checkpointPast = null;
+      }
     }
     this.future = [];
     if (this.checkpointPast) this.journal = this.journalFromCheckpoint();

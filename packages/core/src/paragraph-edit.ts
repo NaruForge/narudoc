@@ -163,7 +163,7 @@ function paragraphSources(doc: DocumentSnapshot, request: RangeRequest, mode: 'r
   protectedOverlap(doc.source, startNodes, request.from.offset, sameParagraph ? request.to.offset : firstText.length);
   if (!sameParagraph) {
     protectedOverlap(doc.source, endNodes, 0, request.to.offset);
-    for (const block of ps.slice(request.from.index + 1, request.to.index + 1)) protectedOverlap(doc.source, block.inline, 0, inlineText(block.inline).length);
+    for (const block of ps.slice(request.from.index + 1, request.to.index)) protectedOverlap(doc.source, block.inline, 0, inlineText(block.inline).length);
   }
   const fromMarks = marksAt(startNodes, request.from.offset);
   const toMarks = marksAt(endNodes, request.to.offset);
