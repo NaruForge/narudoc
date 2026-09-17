@@ -91,6 +91,19 @@ test('Table 9 to 10 uses snapshot display offsets and exact save undo replay', (
   assert.throws(() => planOperation(session.snapshot, { type: 'replaceParagraphRange', id: 'main', from: { index: 0, offset: 5 }, to: { index: 0, offset: 6 }, expected: 'a', text: 'x' }), { code: 'NARU_ARGUMENT' });
 });
 
+test('large multiline gestures reuse snapshot labels and preserve save undo redo source', () => {
+  const original = '# H {#h}\n\nSee [@tab] end.\n\n@table id="tab"\n' + table;
+  const lines = Array.from({ length: 2000 }, (_, index) => 'Line ' + index);
+  const session = new SourceSession(original, { historyLimit: 10 });
+  session.gesture([{ type: 'replaceParagraphRange', id: 'h', from: { index: 0, offset: 12 }, to: { index: 0, offset: 15 }, expected: 'end', text: lines.join('\n') }]);
+  const expected = original.replace('end', lines.join('\n\n'));
+  assert.equal(session.source, expected);
+  session.acknowledgeSave(expected, 'saved'); session.undoGesture();
+  assert.equal(session.source, original);
+  assert.equal(planSequence(parseDocument(expected), session.operations).next.source, original);
+  session.redoGesture(); assert.equal(session.source, expected);
+});
+
 test('annotation updates preserve escaped caption and whitespace and semantic references cannot change other markup', () => {
   const source = '# H {#h}\n\nA **bold**.\n\n@table  caption="old\\\"quote"   id="tab"\n' + table;
   const doc = parseDocument(source);
