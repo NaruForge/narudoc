@@ -8,6 +8,7 @@ import { parseDocument, planOperation, textTarget, textTargets } from '@naruforg
 import { SourceSession } from './session.js';
 export { SourceSession } from './session.js';
 import { renderBlockHtml } from '@naruforge/narudoc-renderer-html';
+export { DocumentEditor, mountDocumentProjection } from './document-editor.js';
 
 const schema = new Schema({
   nodes: {

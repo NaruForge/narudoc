@@ -7,6 +7,7 @@ import { assertValid } from './validation.js';
 import { applyTextEdits, minimalEdit } from './patch.js';
 import { internalReferences } from './references.js';
 import { directiveSource, readInsertDirective } from './directive-input.js';
+import { planJoinParagraph, planReplaceParagraphRange, planSplitParagraph } from './paragraph-edit.js';
 
 function scalar(value: string, label: string, empty = false): void {
   if (typeof value !== 'string' || !wellFormed(value) || /[\x00-\x1f\x7f]/.test(value) || value !== value.trim() || (!empty && !value)) throw new NaruError('NARU_ARGUMENT', `${label} must be a trimmed single-line string.`);
@@ -144,6 +145,15 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
       const left = paragraphPadding(source.slice(previous.range.end, point), doc.eol, false);
       const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
       edits = [{ start: point, end: point, expected: '', text: left + paragraph + right }]; break;
+    }
+    case 'splitParagraph': {
+      const plan = planSplitParagraph(doc, operation); edits = plan.edits; break;
+    }
+    case 'joinParagraph': {
+      const plan = planJoinParagraph(doc, operation); edits = plan.edits; break;
+    }
+    case 'replaceParagraphRange': {
+      const plan = planReplaceParagraphRange(doc, operation); edits = plan.edits; break;
     }
     case 'replaceParagraph': {
       const target = textTarget(doc, { kind: 'paragraph', id: operation.id, index: operation.index });

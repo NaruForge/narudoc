@@ -66,6 +66,10 @@ ID는 `[A-Za-z][A-Za-z0-9._:-]*`이고 문서 내 유일하다. 문단마다 ID�
 
 입력은 section 문단 교체와 같은 단일 문단 문법을 따른다. 빈 입력·앞뒤 빈 줄·여러 블록·heading/list/fence/directive 삽입은 거부하며 참조는 전체 결과에서 검증한다. 새 문단의 개행은 문서의 첫 개행 방식(없으면 LF)을 사용한다. 기존 원문은 삭제·교체하지 않고 문단과 필요한 경계 개행만 삽입한다. 양옆에 블록이 있으면 빈 줄을 확보하며 기존 공백 줄과 혼합 개행은 그대로 둔다. EOF에 추가할 때 기존 마지막 블록 뒤의 공백·개행은 새 문단 뒤에 남기므로 마지막 개행 유무도 유지한다. 같은 명령을 반복하면 문단이 다시 추가되며 중복 제거/no-op은 아니다.
 
+`splitParagraph`, `joinParagraph`, `replaceParagraphRange`는 직접 문단의 표시 text 범위를 보존형으로 편집하는 문서 gesture 연산이다. `index`와 `{ index, offset }`는 매 단계 snapshot의 section 직접 문단 기준이며 `offset`은 UTF-16 표시 text 위치다. Split은 지원되는 strong/emphasis 경계를 보존하고, join은 인접 직접 문단 사이의 빈 줄 경계만 제거한다. Range replace는 같은 section에서 보호 block을 건너지 않는 선택만 허용하며, expected 불일치·surrogate 분할·link/code/escape 내부 편집은 거부한다.
+
+Range의 plain replacement는 `LF`·`CRLF`·`CR`을 문단 경계로 해석하고 구조 문법을 새로 실행하지 않는다. 문서 편집기의 multiline paste는 이 연산을 사용하며 빈 줄은 정규화된다. 결과에 빈 문단이 남거나 heading/list/fence/directive·markup-like 입력이 생기면 원본을 유지하고 실패한다. standalone CLI binding은 없고 Core/API/batch와 웹 편집기가 같은 실행 정의를 공유한다.
+
 Section은 heading 시작부터 다음 동급/상위 heading 직전 또는 EOF까지이며 내부 하위 섹션과 뒤쪽 공백을 포함한다. 이동은 같은 부모의 동급 섹션 사이에서만 허용한다. 이동 대상 내부로 이동할 수 없다. Section 문단 교체의 index는 지정 section의 직접 자식 문단을 대상으로 한 0-based index다. Directive 내부 문단은 세지 않는다. 속성 편집과 섹션 이동은 본문을 재직렬화하지 않는다.
 
 `replaceDirectiveParagraph`는 directive ID와 본문 문단의 0-based index로 기존 문단 하나를 교체한다. `children` 중 paragraph만 세므로 목록·코드는 index에 포함하지 않는다. 빈 본문에 문단을 삽입하거나 기존 문단을 삭제하는 기능은 아니다. 입력은 directive 문맥에서 정확히 한 문단이어야 하며 앞뒤 빈 줄·추가 블록·닫는 delimiter·중첩 directive를 거부한다. Heading·metadata처럼 보이는 줄은 기존 본문 문법에 따라 literal paragraph다. 교체 후 전체 문서를 재파싱·검증하므로 깨진 내부 참조도 거부한다.

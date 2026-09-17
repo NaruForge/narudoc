@@ -94,3 +94,59 @@ test('batch indices refer to each preceding result, independently of external di
   assert.equal(atTwo.next.source, '\uFEFF# Control  {#control}\r\n\r\nX.\r\n\r\nA.\r\n\r\nB changed.\r\n');
   assert.throws(() => planBatch(parseDocument(source), { schemaVersion: 1, operations: [insert, text(1, 'B.', 'Wrong.')] }), e => e.code === 'NARU_STALE' && e.operationIndex === 1);
 });
+
+test('save acknowledgement rebases semantic journal without discarding document undo/redo', () => {
+  const session = new SourceSession(source, { revision: 'disk-r1', historyLimit: 20 });
+  session.apply(text(0, 'A.', 'A changed.'));
+  const saved = session.source;
+  session.acknowledgeSave(saved, 'disk-r2');
+  assert.equal(session.baseSource, saved); assert.equal(session.diskRevision, 'disk-r2'); assert.equal(session.operations.length, 0); assert.equal(session.canUndo, true);
+  assert.equal(session.undoGesture(), true); assert.equal(session.source, source);
+  assert.equal(planSequence(parseDocument(saved), session.operations).next.source, source);
+  assert.equal(session.redoGesture(), true); assert.equal(session.source, saved);
+  assert.equal(planSequence(parseDocument(saved), session.operations).next.source, saved);
+});
+
+test('split, join and boundary insertion replay exactly after save undo and redo', () => {
+  const cases = [
+    ['# Control {#control}\n\nAlpha.', { type: 'splitParagraph', id: 'control', index: 0, offset: 2, expected: 'Alpha.' }],
+    ['# Control {#control}\n\nA.\n\nB.', { type: 'joinParagraph', id: 'control', index: 0, expected: 'A.\nB.' }],
+    ['# Control {#control}\n\nA.', { type: 'insertParagraph', id: 'control', index: 1, text: 'Tail' }],
+  ];
+  for (const [original, operation] of cases) {
+    const session = new SourceSession(original, { revision: 'disk-r1', historyLimit: 20 });
+    session.apply(operation); const saved = session.source;
+    session.acknowledgeSave(saved, 'disk-r2');
+    assert.equal(session.undoGesture(), true); assert.equal(session.source, original);
+    assert.equal(planSequence(parseDocument(saved), session.operations).next.source, session.source);
+    assert.equal(session.redoGesture(), true); assert.equal(session.source, saved);
+    assert.equal(planSequence(parseDocument(saved), session.operations).next.source, session.source);
+  }
+});
+
+test('operations without a byte-exact inverse are explicit document history barriers', () => {
+  const cases = [
+    [source, { type: 'insertDirective', sectionId: 'control', name: 'note', id: 'N', attributes: {}, children: [{ type: 'paragraph', text: 'Note.' }] }],
+    ['# Control {#control}\n\nA.\n\n:::note\nid: N\n\nNote.\n:::', { type: 'setDirectiveAttribute', id: 'N', key: 'status', value: 'draft' }],
+  ];
+  for (const [original, operation] of cases) {
+    const session = new SourceSession(original, { revision: 'disk-r1', historyLimit: 20 });
+    session.apply(text(0, 'A.', 'Changed.')); assert.equal(session.canUndo, true);
+    session.apply(operation); assert.equal(session.canUndo, false); assert.equal(session.canRedo, false);
+    const saved = session.source; session.acknowledgeSave(saved, 'disk-r2');
+    assert.equal(session.canUndo, false); assert.deepEqual(session.operations, []);
+  }
+});
+
+test('history rollover preserves saved-base replay when a full checkpoint loses its oldest gesture', () => {
+  const original = '# Control {#control}\n\nA';
+  const replace = (expected, value) => ({ type: 'replaceParagraphRange', id: 'control', from: { index: 0, offset: 0 }, to: { index: 0, offset: expected.length }, expected, text: value });
+  const session = new SourceSession(original, { revision: 'disk-r1', historyLimit: 2 });
+  session.apply(replace('A', 'B')); session.apply(replace('B', 'C'));
+  const saved = session.source; session.acknowledgeSave(saved, 'disk-r2');
+  session.apply(replace('C', 'D'));
+  assert.equal(planSequence(parseDocument(saved), session.operations).next.source, session.source);
+  assert.equal(session.undoGesture(), true); assert.equal(session.source, saved); assert.deepEqual(session.operations, []);
+  assert.equal(session.redoGesture(), true); assert.equal(session.source, '# Control {#control}\n\nD');
+  assert.equal(planSequence(parseDocument(saved), session.operations).next.source, session.source);
+});

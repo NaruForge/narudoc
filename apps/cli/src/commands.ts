@@ -16,6 +16,9 @@ export const operationBindings: Bindings = {
   moveSection: { command: 'section move', fields: { id: 'id', after: 'after' } },
   replaceParagraph: { command: 'paragraph replace', fields: { id: 'id', index: 'index', text: 'text' } },
   insertParagraph: { command: 'paragraph insert', fields: { id: 'id', index: 'index', text: 'text' } },
+  splitParagraph: null,
+  joinParagraph: null,
+  replaceParagraphRange: null,
   replaceDirectiveParagraph: { command: 'directive replace-paragraph', fields: { id: 'id', index: 'index', text: 'text' } },
   setDirectiveAttribute: { command: 'directive set', fields: { id: 'id', key: 'key', value: 'value' } },
 };

@@ -42,9 +42,9 @@
 
 Core query의 직접 본문/text/table resolver를 CLI와 adapter가 재사용한다. Stable ID와 snapshot 상대 index/path, GUI selection은 서로 다르다. `get`의 targets와 `table get`의 target은 현재 단계 scope를 표시한다. A/B 앞 X 삽입 뒤 다음 단계 index 1은 A, 2는 B다. 외부 stale revision은 file-store의 별도 SHA-256 검사이며 내부 index 이동을 해결하지 않는다. ID rename은 parser가 기록한 정의/실제 내부 링크 범위를 공통 참조 순회로 고친다.
 
-순수 `editor-adapter/session`은 source/snapshot, 저장 기준 revision, draft 등록, selection과 의미 gesture를 조정한다. PM/DOM adapter는 projection과 composition을 담당한다. 한 gesture의 모든 operation을 준비한 뒤 한 번 공개하고, 구조가 바뀌면 오래된 view/selection을 무효화한다. Journal의 연속 inline 편집 축약은 exact-source 재계획으로 확인하고 undo history와 구분한다.
+순수 `editor-adapter/session`은 source/snapshot, 저장 기준 revision, draft 등록, selection과 의미 gesture history를 조정한다. 현재 웹 본문은 하나의 PM document projection을 사용하고, PM/DOM adapter는 projection·composition·커서만 담당한다. 한 gesture의 모든 operation을 준비한 뒤 한 번 공개하고, 구조가 바뀌면 오래된 view/selection을 무효화한다. 연속 입력과 문단 범위 편집은 Core operation으로 계획하며, Save acknowledgement는 저장 기준 journal을 rebase하면서 undo/redo history를 유지한다.
 
-실제 두 문단 PM proof는 단일 document projection과 복수 view를 비교한다. 다음 자연스러운 편집 확장은 단일 projection을 기준으로 검토하며 현재 per-block 제한을 제품 원칙으로 고정하지 않는다. 현재 저장 시 history 초기화, 자동 ID UX 제외, 측정 절충과 남은 검증은 [ADR0011](adr/0011-targets-and-source-session.md)에 있다. 현재 제품 지원은 [spike](visual-editor-spike.md)와 [로컬 편집기](local-editor.md)를 따른다.
+현재 로컬 편집기는 단일 document projection을 사용한다. 직접 heading/paragraph와 generic directive의 직접 paragraph만 의미 편집 대상으로 투영하고, list/table/code/metadata/link/code/escaped inline은 보호 projection으로 표시한다. 현재 per-block `BlockEditor`는 기존 spike/호환 테스트 경로에 남아 있지만 제품 본문 편집의 저장 경로가 아니다. 자동 ID UX 제외, 측정 절충과 남은 검증은 [ADR0011](adr/0011-targets-and-source-session.md)에 있으며 ADR 상태는 여전히 Proposed다. 현재 제품 지원은 [spike](visual-editor-spike.md)와 [로컬 편집기](local-editor.md)를 따른다.
 
 ## 저장과 안전
 

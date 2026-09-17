@@ -1,11 +1,11 @@
-import { SourceSession, mountDocument } from '@naruforge/narudoc-editor-adapter';
+import { SourceSession, mountDocumentProjection } from '@naruforge/narudoc-editor-adapter';
 import { outline, validateDocument } from '@naruforge/narudoc-core';
 import { renderBlockHtml } from '@naruforge/narudoc-renderer-html';
 
 const $ = id => document.getElementById(id);
 const token = location.hash.slice(1) || sessionStorage.getItem('narudoc-token');
 if (location.hash) { sessionStorage.setItem('narudoc-token', token); history.replaceState(null, '', '/'); }
-let session, editors = [], busy = false;
+let session, editors = [], documentEditor, busy = false;
 const report = message => { $('message').textContent = message; };
 const dirty = () => session && (session.source !== session.baseSource || session.drafts.size > 0);
 async function api(route, input) {
@@ -33,7 +33,7 @@ function update() {
   $('diagnostics').replaceChildren(...(diagnostics.length ? diagnostics : ['No validation errors']).map(text => { const li = document.createElement('li'); li.textContent = text; return li; }));
 }
 function project() {
-  editors.forEach(e => e.destroy());
+  documentEditor?.destroy(); documentEditor = undefined; editors = [];
   if (validateDocument(session.snapshot).some(d => d.severity === 'error')) {
     editors = []; $('content').replaceChildren();
     for (const block of session.snapshot.blocks) {
@@ -45,7 +45,7 @@ function project() {
       $('content').append(wrapper);
     }
     $('content').onclick = event => { if (event.target.closest('a')) event.preventDefault(); };
-  } else { $('content').onclick = null; editors = mountDocument($('content'), session, report); }
+  } else { $('content').onclick = null; documentEditor = mountDocumentProjection($('content'), session, report); editors = documentEditor.handles; }
   const selected = $('section').value;
   const items = outline(session.snapshot);
   $('outline').replaceChildren(); $('section').replaceChildren();
@@ -68,7 +68,7 @@ function project() {
 }
 function replace(source, rev) {
   session?.listeners.delete(update);
-  session = new SourceSession(source, { revision: rev }); session.listeners.add(update);
+  session = new SourceSession(source, { revision: rev, historyLimit: 200 }); session.listeners.add(update);
   project();
 }
 async function run(task) {
@@ -80,8 +80,10 @@ $('save').addEventListener('click', () => run(async () => {
   if (!session.valid) throw Error('Resolve the draft before saving.');
   const result = await api('save', { revision: session.diskRevision, operations: session.operations });
   if (result.source !== session.source) throw Error('Server/client source mismatch. Draft retained; reload after checking disk.');
-  replace(result.source, result.revision); report('Saved.');
+  session.acknowledgeSave(result.source, result.revision); report('Saved.');
 }));
+$('undo').addEventListener('click', () => run(async () => { if (!session.undoGesture()) report('Nothing to undo.'); }));
+$('redo').addEventListener('click', () => run(async () => { if (!session.redoGesture()) report('Nothing to redo.'); }));
 $('reload').addEventListener('click', () => {
   if (dirty() && !confirm('Discard the unsaved draft and reload from disk?')) return;
   void run(async () => { const result = await api('document'); $('file').textContent = result.file; replace(result.source, result.revision); });
@@ -107,4 +109,3 @@ addEventListener('beforeunload', event => { if (dirty()) { event.preventDefault(
 // Read-only observation hooks for reproducible browser tests; no alternate save path.
 Object.defineProperty(window, 'narudoc', { value: { get session() { return session; }, get editors() { return editors; } } });
 void run(async () => { const result = await api('document'); $('file').textContent = result.file; replace(result.source, result.revision); });
-

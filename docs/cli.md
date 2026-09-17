@@ -156,6 +156,26 @@ Core/batch는 `{ "type": "insertParagraph", "id": "control", "index": 0, "text":
 
 기존 문법·모델·응답 envelope와 교체 index는 변경하지 않는다. 문서 migration은 없으며, 구버전은 새 operation을 지원하지 않는다. 공개 Operation union을 exhaustive switch로 처리하는 소비자는 새 분기를 고려해야 한다. [새 문서 작성 계획](../examples/new-document-edit.json)과 [편집 시나리오](authoring-scenario.md)는 새 문서에 삽입한 뒤 기존 교체 명령으로 수정하고 검증·HTML 출력까지 수행한다.
 
+## 문단 범위 편집
+
+`splitParagraph`, `joinParagraph`, `replaceParagraphRange`는 문서 편집기의 문단 단위 gesture를 재현하는 API/batch 전용 operation이다. 별도 standalone CLI 명령은 제공하지 않으며 `batch` 또는 웹 저장 요청에서 사용한다. 모든 직접 문단 index와 `offset`은 해당 단계 snapshot 기준이고 `offset`은 표시 text의 UTF-16 code unit 단위다. surrogate pair를 가르거나 `expected`가 현재 표시 text와 다르면 실패한다.
+
+`splitParagraph`는 한 직접 문단을 표시 offset에서 둘로 나누고, `joinParagraph`는 같은 section의 바로 이어진 두 직접 문단 경계를 제거한다. `replaceParagraphRange`는 `{ from: { index, offset }, to: { index, offset }, expected, text }`를 받아 한 문단 또는 인접한 여러 직접 문단의 선택 영역을 원자적으로 교체한다. `text`의 `LF`·`CRLF`·`CR`은 문단 경계가 되며 plain multiline paste에 사용한다. 빈 줄은 정규화되고, 구조 문법·markup-like 입력·보호 inline/block 경계·다른 section 경계는 거부된다.
+
+예를 들어 다음 batch는 첫 문단을 두 문단으로 나눈 뒤 두 번째 문단의 표시 text를 바꾼다.
+
+```json
+{
+  "schemaVersion": 1,
+  "operations": [
+    { "type": "splitParagraph", "id": "control", "index": 0, "offset": 5, "expected": "Alpha beta gamma." },
+    { "type": "replaceParagraphRange", "id": "control", "from": { "index": 1, "offset": 0 }, "to": { "index": 1, "offset": 5 }, "expected": " beta", "text": " BETA" }
+  ]
+}
+```
+
+각 operation은 직전 operation 결과에서 다시 계획되며 전체 sequence가 성공할 때만 저장된다. 자세한 입력 schema·예제·재시도 의미는 `pnpm exec narudoc capabilities --operation replaceParagraphRange --json`에서 확인한다. 이 세 operation은 현재 standalone CLI binding이 없으므로 일반 단일 문단 변경에는 `paragraph replace`를 우선 사용한다.
+
 ## Generic directive 생성
 
 `directive insert FILE --section ID --from INPUT`은 섹션의 직접 본문 끝에 새 객체를 생성한다. `INPUT`은 아래 의미 구조의 JSON 파일이며 `--from -`이면 stdin을 읽는다. 원문 fragment가 아니다. 대상 문서는 실제 파일이어야 하고 `--stdin`은 허용하지 않는다. 파일 입력의 UTF-8 엄격 decoding·선두 BOM·10 MiB 한도·symlink/hardlink 제한은 batch와 같다. Stdin도 UTF-8/BOM/10 MiB 한도를 적용한다. 결과 문서 크기와 revision·dry-run·협조적 lock·JSON 응답은 기존 개별 편집 경로를 따른다.
