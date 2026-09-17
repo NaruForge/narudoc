@@ -185,7 +185,13 @@ export class SourceSession {
       const inverse = inverseOperations(before.snapshot, operations);
       if (inverse) {
         this.past.push({ before, after: this.state(), forward: operations, inverse });
-        if (this.past.length > this.historyLimit) this.past.shift();
+        if (this.past.length > this.historyLimit) {
+          const removed = this.past.shift();
+          if (this.checkpointPast) {
+            if (this.checkpointPast[0] === removed) this.checkpointPast = this.checkpointPast.slice(1);
+            else { this.past = []; this.future = []; this.checkpointPast = null; }
+          }
+        }
       } else {
         // A gesture without a byte-exact semantic inverse is an explicit history barrier.
         // Its journal remains saveable, but no snapshot-only undo may cross it.

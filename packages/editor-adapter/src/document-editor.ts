@@ -2,7 +2,7 @@ import { Schema, type Mark, type Node as PMNode } from 'prosemirror-model';
 import { EditorState, TextSelection, type Transaction } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { boundary, inlineText, NaruError, type Block, type DocumentSnapshot, type Inline, type Operation, type TextTarget } from '@naruforge/narudoc-model';
-import { textTargets } from '@naruforge/narudoc-core';
+import { planOperation, textTarget, textTargets } from '@naruforge/narudoc-core';
 import { renderBlockHtml } from '@naruforge/narudoc-renderer-html';
 import { SourceSession } from './session.js';
 
@@ -40,7 +40,10 @@ interface Projection { doc: PMNode; source: string }
 interface ProjectionBlock { node: PMNode; pos: number; start: number; end: number; target?: TextTarget; text: string; key: string }
 interface Point { target: TextTarget; offset: number }
 interface Cursor { target: TextTarget; offset: number }
-interface VirtualSplit { target: TextTarget; offset: number; original: string }
+type VirtualEdit =
+  | { kind: 'paragraphSplit'; target: TextTarget; offset: number; original: string }
+  | { kind: 'headingParagraph'; target: { kind: 'paragraph'; id: string; index: number } };
+interface InlineMapping { path: string; from: number; to: number; value: string }
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]!));
@@ -201,6 +204,26 @@ function pasteParts(text: string): string[] {
   return normalized === '\n' ? ['', ''] : normalized.split('\n').filter(Boolean);
 }
 
+function inlineMappings(snapshot: DocumentSnapshot, target: TextTarget): InlineMapping[] {
+  const mappings: InlineMapping[] = [];
+  let offset = 0;
+  function visit(nodes: Inline[], prefix = '') {
+    nodes.forEach((node, index) => {
+      const path = prefix + index;
+      mappings.push({ path, from: offset, to: offset, value: '' });
+      if (node.type === 'strong' || node.type === 'emphasis') { visit(node.children, path + '.'); return; }
+      const length = inlineText([node]).length;
+      if (node.type === 'text' && node.range && snapshot.source.slice(node.range.start, node.range.end) === node.value && !/[\r\n]/.test(node.value)) {
+        mappings.push({ path, from: offset, to: offset + length, value: node.value });
+      }
+      offset += length;
+    });
+    mappings.push({ path: prefix + nodes.length, from: offset, to: offset, value: '' });
+  }
+  visit(textTarget(snapshot, target).inline);
+  return mappings;
+}
+
 export interface DocumentEditorHandle { target: TextTarget; view: EditorView }
 
 export class DocumentEditor {
@@ -210,7 +233,7 @@ export class DocumentEditor {
   private composing = false;
   private committing = false;
   private destroyed = false;
-  private virtual: VirtualSplit | null = null;
+  private virtual: VirtualEdit | null = null;
   private unsubscribe: () => void;
 
   constructor(readonly session: SourceSession, readonly host: HTMLElement, readonly report: (message: string) => void) {
@@ -287,6 +310,12 @@ export class DocumentEditor {
       if (!this.commitOperations([operation], cursor)) this.retainDraft(from, to, text);
       return true;
     }
+    const single = this.singleTargetRange(from, to);
+    if (single?.start.target.kind === 'directiveParagraph') {
+      const draft = this.view.state.tr.insertText(text, from, to).doc;
+      this.commitInlineDraft(single.start.target, single.start.offset, single.end.offset, text, draft, { target: single.start.target, offset: single.start.offset + text.length });
+      return true;
+    }
     const range = this.pointRange(from, to); if (!range) return true;
     const operation: Operation = { type: 'replaceParagraphRange', id: range.start.target.id, from: { index: range.start.target.index, offset: range.start.offset }, to: { index: range.end.target.index, offset: range.end.offset }, expected: range.expected, text };
     try {
@@ -297,6 +326,25 @@ export class DocumentEditor {
       if (!this.commitOperations([operation], cursor)) this.retainDraft(from, to, text);
       return true;
     } catch (error) { this.report((error as Error).message); return true; }
+  }
+
+  private singleTargetRange(from: number, to: number): { block: ProjectionBlock; start: Point; end: Point } | undefined {
+    const list = this.currentBlocks(), startBlock = blockAt(from, list, false), endBlock = blockAt(to, list, true);
+    if (!startBlock || startBlock !== endBlock || !startBlock.target) return undefined;
+    return { block: startBlock, start: { target: startBlock.target, offset: offsetAt(startBlock, from) }, end: { target: startBlock.target, offset: offsetAt(startBlock, to) } };
+  }
+
+  private commitInlineDraft(target: TextTarget, from: number, to: number, text: string, draft: PMNode, cursor: Cursor): boolean {
+    let failure: unknown;
+    for (const mapping of inlineMappings(this.session.snapshot, target).filter(item => from >= item.from && to <= item.to)) {
+      try {
+        const operation: Operation = { type: 'setInlineText', ...target, path: mapping.path, expected: mapping.value, text: mapping.value.slice(0, from - mapping.from) + text + mapping.value.slice(to - mapping.from) };
+        const candidate = planOperation(this.session.snapshot, operation);
+        if (blockProjection(candidate.next).doc.eq(draft)) return this.commitOperations([operation], cursor);
+      } catch (error) { failure = error; }
+    }
+    this.report((failure as Error | undefined)?.message ?? 'Only ordinary text edits inside one inline run are supported.');
+    return false;
   }
 
   private headingRange(from: number, to: number): { block: ProjectionBlock; start: Point; end: Point } | undefined {
@@ -339,18 +387,37 @@ export class DocumentEditor {
     if (event.key === 'Enter') {
       event.preventDefault();
       if (!selection.empty) return this.applyRange(selection.from, selection.to, '\n');
+      const heading = this.headingRange(selection.from, selection.to);
+      if (heading) {
+        if (heading.start.offset !== heading.block.text.length) { this.report('Enter is supported only at the end of a heading.'); return true; }
+        const insertAt = heading.block.pos + heading.block.node.nodeSize, next = this.view.state.doc.nodeAt(insertAt);
+        if (next?.type.name === 'protectedBlock') { this.report('A protected block boundary cannot be crossed.'); return true; }
+        const target = { kind: 'paragraph' as const, id: heading.start.target.id, index: 0 };
+        const node = schema.nodes.paragraph!.create({ target: targetKey(target), label: `paragraph ${target.id} 0`, container: 'section' });
+        this.virtual = { kind: 'headingParagraph', target };
+        const transaction = this.view.state.tr.insert(insertAt, node);
+        transaction.setSelection(TextSelection.create(transaction.doc, insertAt + 1)); this.view.dispatch(transaction); return true;
+      }
       const range = this.pointRange(selection.from, selection.to); if (!range || range.start.target.index !== range.end.target.index) return true;
       const text = range.from.text;
       if (range.start.offset > 0 && range.start.offset < text.length) {
         try { this.commitOperations([{ type: 'splitParagraph', id: range.start.target.id, index: range.start.target.index, offset: range.start.offset, expected: text }], { target: { kind: 'paragraph', id: range.start.target.id, index: range.start.target.index + 1 }, offset: 0 }); } catch (error) { this.report((error as Error).message); }
         return true;
       }
-      this.virtual = { target: range.start.target, offset: range.start.offset, original: text };
+      this.virtual = { kind: 'paragraphSplit', target: range.start.target, offset: range.start.offset, original: text };
       this.view.dispatch(this.view.state.tr.split(selection.from)); return true;
     }
     if (event.key === 'Backspace' || event.key === 'Delete') {
       event.preventDefault();
       if (!selection.empty) return this.applyRange(selection.from, selection.to, '');
+      const single = this.singleTargetRange(selection.from, selection.to);
+      if (single && single.start.target.kind !== 'paragraph') {
+        const value = single.block.text, offset = single.start.offset;
+        const start = event.key === 'Backspace' ? previousOffset(value, offset) : offset;
+        const end = event.key === 'Backspace' ? offset : nextOffset(value, offset);
+        if (start !== end) return this.applyRange(positionForOffset(this.view.state.doc, single.start.target, start)!, positionForOffset(this.view.state.doc, single.start.target, end)!, '');
+        return true;
+      }
       const range = this.pointRange(selection.from, selection.to); if (!range) return true;
       const target = range.start.target, block = range.from, value = block.text, offset = range.start.offset;
       if (event.key === 'Backspace' && offset === 0 && target.index > 0) {
@@ -385,9 +452,22 @@ export class DocumentEditor {
       const changed = current.filter((item, index) => item.text !== base[index]?.text);
       if (!changed.length) { this.session.drafts.delete(DOCUMENT_DRAFT); this.session.notify(); return; }
       const first = base.findIndex(item => item.key === changed[0]!.key), last = base.findIndex(item => item.key === changed.at(-1)!.key);
-      if (first < 0 || last < first || base[first]!.target?.kind !== 'paragraph' || base[last]!.target?.kind !== 'paragraph') return;
+      if (first < 0 || last < first) return;
       const oldFirst = base[first]!, newFirst = current[first]!, oldLast = base[last]!, newLast = current[last]!;
       const prefix = commonPrefix(oldFirst.text, newFirst.text), suffix = commonSuffix(oldLast.text, newLast.text, first === last ? prefix : 0);
+      if (first === last && oldFirst.target?.kind === 'heading') {
+        const operation: Operation = { type: 'setHeadingTitle', id: oldFirst.target.id, title: newFirst.text };
+        try {
+          const candidate = planOperation(this.session.snapshot, operation);
+          if (blockProjection(candidate.next).doc.eq(this.view.state.doc)) this.commitOperations([operation], { target: oldFirst.target, offset: newFirst.text.length - suffix });
+        } catch (error) { this.report((error as Error).message); }
+        return;
+      }
+      if (first === last && oldFirst.target?.kind === 'directiveParagraph') {
+        this.commitInlineDraft(oldFirst.target, prefix, oldFirst.text.length - suffix, newFirst.text.slice(prefix, newFirst.text.length - suffix), this.view.state.doc, { target: oldFirst.target, offset: newFirst.text.length - suffix });
+        return;
+      }
+      if (oldFirst.target?.kind !== 'paragraph' || oldLast.target?.kind !== 'paragraph') return;
       const oldMiddle = base.slice(first + 1, last).map(item => item.text).join('\n'), newMiddle = current.slice(first + 1, last).map(item => item.text).join('\n');
       const operation: Operation = { type: 'replaceParagraphRange', id: oldFirst.target!.id, from: { index: oldFirst.target!.index, offset: prefix }, to: { index: oldLast.target!.index, offset: oldLast.text.length - suffix }, expected: first === last ? oldFirst.text.slice(prefix, oldFirst.text.length - suffix) : oldFirst.text.slice(prefix) + '\n' + (oldMiddle ? oldMiddle + '\n' : '') + oldLast.text.slice(0, oldLast.text.length - suffix), text: first === last ? newFirst.text.slice(prefix, newFirst.text.length - suffix) : newFirst.text.slice(prefix) + '\n' + (newMiddle ? newMiddle + '\n' : '') + newLast.text.slice(0, newLast.text.length - suffix) };
       this.commitOperations([operation], { target: operation.from.index === operation.to.index ? oldFirst.target! : oldLast.target!, offset: operation.from.index === operation.to.index ? prefix + (operation.text as string).length : (operation.text as string).length });
@@ -398,6 +478,15 @@ export class DocumentEditor {
 
   private commitVirtual(current: ProjectionBlock[], base: ProjectionBlock[]) {
     if (!this.virtual) return;
+    if (this.virtual.kind === 'headingParagraph') {
+      const inserted = current.find(item => item.key === targetKey(this.virtual!.target));
+      if (!inserted?.text) { this.session.drafts.set(DOCUMENT_DRAFT, this.view.state.doc.textContent); this.session.notify(); return; }
+      try {
+        this.commitOperations([{ type: 'insertParagraph', id: this.virtual.target.id, index: 0, text: plainParagraphText(inserted.node) }], { target: this.virtual.target, offset: inserted.text.length });
+        this.virtual = null;
+      } catch (error) { this.report((error as Error).message); }
+      return;
+    }
     const key = targetKey(this.virtual.target), index = base.findIndex(item => item.key === key);
     if (index < 0 || base[index]!.target?.kind !== 'paragraph') return;
     const pair = current[index]?.key === key && current[index + 1]?.key === key ? [current[index]!, current[index + 1]!] as [ProjectionBlock, ProjectionBlock] : undefined;

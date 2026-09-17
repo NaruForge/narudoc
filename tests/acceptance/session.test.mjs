@@ -137,3 +137,16 @@ test('operations without a byte-exact inverse are explicit document history barr
     assert.equal(session.canUndo, false); assert.deepEqual(session.operations, []);
   }
 });
+
+test('history rollover preserves saved-base replay when a full checkpoint loses its oldest gesture', () => {
+  const original = '# Control {#control}\n\nA';
+  const replace = (expected, value) => ({ type: 'replaceParagraphRange', id: 'control', from: { index: 0, offset: 0 }, to: { index: 0, offset: expected.length }, expected, text: value });
+  const session = new SourceSession(original, { revision: 'disk-r1', historyLimit: 2 });
+  session.apply(replace('A', 'B')); session.apply(replace('B', 'C'));
+  const saved = session.source; session.acknowledgeSave(saved, 'disk-r2');
+  session.apply(replace('C', 'D'));
+  assert.equal(planSequence(parseDocument(saved), session.operations).next.source, session.source);
+  assert.equal(session.undoGesture(), true); assert.equal(session.source, saved); assert.deepEqual(session.operations, []);
+  assert.equal(session.redoGesture(), true); assert.equal(session.source, '# Control {#control}\n\nD');
+  assert.equal(planSequence(parseDocument(saved), session.operations).next.source, session.source);
+});
