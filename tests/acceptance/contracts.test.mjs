@@ -54,11 +54,12 @@ async function fixture(t) {
   };
   return { dir, file, post };
 }
-for (const [type, definition] of Object.entries(operationDefinitions)) test(`contract example ${type}: Core / standalone CLI / batch / HTTP exact bytes`, async t => {
+for (const [type, definition] of Object.entries(operationDefinitions)) test(`contract example ${type}: Core / CLI route / batch / HTTP exact bytes`, async t => {
   const { dir, file, post } = await fixture(t), operation = { type, ...definition.example };
   assert.equal(planOperation(parseDocument(source), operation).next.source, expected[type]);
   assert.equal(planBatch(parseDocument(source), { schemaVersion: 1, operations: [operation] }).next.source, expected[type]);
   const example = operationExample(type), args = [...example.args]; args[args.indexOf('practice.narudoc')] = file;
+  if (args.includes('SHA256')) args[args.indexOf('SHA256')] = revision(source);
   if (Object.keys(example.json).length) { const input = join(dir, 'input.json'); await writeFile(input, JSON.stringify(example.json)); args[args.indexOf('input.json')] = input; }
   const result = cli([...args, '--json']); assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(await readFile(file), Buffer.from(expected[type]));
@@ -125,7 +126,7 @@ test('all help levels are file-free and capability is bounded; intentional contr
     const result = cli([...args, '--help']); assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /narudoc/);
   }
   const list = capabilities(); assert.equal(list.operations.length, 14); assert.ok(!JSON.stringify(list).includes('properties'));
-  for (const type of Object.keys(operationDefinitions)) { readOperation(capabilities(type).example); assert.match(commandHelp(operationBindings[type].command.split(' ')), /Example:/); }
+  for (const type of Object.keys(operationDefinitions)) { readOperation(capabilities(type).example); assert.match(commandHelp((operationBindings[type]?.command ?? 'batch').split(' ')), /Example:/); }
   assert.throws(() => checkBindings(operationDefinitions, { ...operationBindings, fake: { command: 'fake', fields: {} } }), /coverage drift/);
   const wrong = structuredClone(operationBindings); delete wrong.setTableCell.fields.part;
   assert.throws(() => checkBindings(operationDefinitions, wrong), /field\/binding drift/);
