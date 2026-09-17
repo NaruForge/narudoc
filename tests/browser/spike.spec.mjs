@@ -98,3 +98,28 @@ test('whole ordinary run deletion and undo/redo restore exact source',async({pag
   await page.keyboard.press('Control+z');await expect.poll(()=>source(page)).toBe(fixture);
   await page.keyboard.press('Control+y');await expect.poll(()=>source(page)).toBe('# H {#h}\n\n**bold** B');
 });
+test('structural insertion invalidates an identical-text paragraph view instead of rebinding its index', async ({ page }) => {
+  const fixture = '# Control {#control}\n\nP.\n\nP.';
+  await page.evaluate(s => window.spike.mount(s), fixture);
+  const second = page.getByRole('textbox', { name: 'paragraph control 1', exact: true });
+  await second.focus(); await page.keyboard.press('End');
+  await page.evaluate(() => window.spike.session.apply({ type: 'insertParagraph', id: 'control', index: 0, text: 'P.' }));
+  const inserted = '# Control {#control}\n\nP.\n\nP.\n\nP.';
+  expect(await source(page)).toBe(inserted);
+  await page.keyboard.type(' changed');
+  await expect(page.getByRole('alert')).toContainText(/stale/i);
+  expect(await source(page)).toBe(inserted); expect(await second.textContent()).toContain('changed');
+});
+test('typing coalesces save replay while per-block undo/redo and empty drafts retain fidelity', async ({ page }) => {
+  await selectText(page, '400'); await page.keyboard.type('420');
+  await expect.poll(() => source(page)).toBe(original.replace('400', '420'));
+  expect(await page.evaluate(() => window.spike.session.operations.length)).toBe(1);
+  await page.keyboard.press('Control+z'); await expect.poll(() => source(page)).toBe(original);
+  await page.keyboard.press('Control+y'); await expect.poll(() => source(page)).toBe(original.replace('400', '420'));
+  const fixture = '# Control {#control}\n\nA.\n\nB.';
+  await page.evaluate(s => window.spike.mount(s), fixture);
+  await selectText(page, 'A.'); await page.keyboard.press('Backspace');
+  await expect.poll(() => box(page).textContent()).toBe('');
+  expect(await source(page)).toBe(fixture);
+  expect(await page.evaluate(() => window.spike.session.valid)).toBe(false);
+});

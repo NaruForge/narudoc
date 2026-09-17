@@ -67,4 +67,12 @@ v0.0.3은 docs/format.md의 좁은 NaruDoc 문법만 구현하는 순수 TypeScr
 
 ## 실행 입력 계약
 
+대상 해석과 편집 상태의 소유권은 아래 절을 함께 따른다.
+
 의미 입력의 원본은 model의 [operation-contract.ts](../packages/model/src/operation-contract.ts)다. TypeScript 타입과 runtime shape 검사는 같은 정의를 사용한다. Core는 문서 문맥의 의미 검증을, CLI binding은 flag/출력/파일 입력을, 웹은 HTTP 인증·요청 한도를 소유한다. 공통 Node JSON reader는 file-store에 있다. 공통 순차 planning은 host limit과 분리하며 전체 요청 실패 index를 유지한다. [ADR 0010](adr/0010-executable-operation-contract.md)은 대안·호환성·유지 비용을 기록한 Proposed 문서다.
+
+## 대상과 편집 세션
+
+Core query가 section 직접 본문과 text/table 대상을 해석한다. Stable ID와 snapshot 상대 index/path는 다른 계약이다. `get`의 targets와 `table get`의 target은 현재 단계 scope를 표시한다. Batch 내부 삽입 뒤에는 바뀐 index를 사용하며 외부 stale revision 검사는 file-store에 남는다.
+
+순수 `editor-adapter/session`은 source/snapshot, 저장 기준 revision, draft 등록, selection과 의미 gesture를 조정한다. PM/DOM adapter는 projection과 입력 composition을 담당한다. 한 gesture의 모든 operation을 준비한 뒤 한 번 공개하고, 구조가 바뀌면 오래된 view를 무효화한다. 저장 journal의 연속 inline 편집 축약은 exact-source 재계획으로 확인하며 undo history와 구분한다. 실제 두 문단 PM proof, 측정 결과와 다음 단일 문서 projection 방향은 [Proposed ADR 0011](adr/0011-targets-and-source-session.md)에 있다.

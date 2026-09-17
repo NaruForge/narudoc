@@ -4,7 +4,9 @@ import { EditorView } from 'prosemirror-view';
 import { history, undo, redo } from 'prosemirror-history';
 export { undo, redo } from 'prosemirror-history';
 import { inlineText, NaruError, type DocumentSnapshot, type Inline, type Operation, type TextTarget } from '@naruforge/narudoc-model';
-import { parseDocument, planOperation, textTarget, validateDocument } from '@naruforge/narudoc-core';
+import { parseDocument, planOperation, textTarget, textTargets } from '@naruforge/narudoc-core';
+import { SourceSession } from './session.js';
+export { SourceSession } from './session.js';
 import { renderBlockHtml } from '@naruforge/narudoc-renderer-html';
 
 const schema = new Schema({
@@ -39,29 +41,6 @@ function projection(snapshot: DocumentSnapshot, target: TextTarget) {
   }
   const content = visit(textTarget(snapshot, target).inline);
   return { doc: schema.nodes.doc!.create(null, schema.nodes.paragraph!.create(null, content)), mappings: [...mappings, ...gaps] };
-}
-
-/** Source is canonical. Operations are retained for a host to replay through Core at save time. */
-export class SourceSession {
-  snapshot: DocumentSnapshot;
-  generation = 0;
-  epoch = 0;
-  operations: Operation[] = [];
-  listeners = new Set<() => void>();
-  drafts = new Map<string, string>();
-  constructor(source: string) { this.snapshot = parseDocument(source); }
-  get source() { return this.snapshot.source; }
-  get valid() { return !this.drafts.size && !validateDocument(this.snapshot).some(d => d.severity === 'error'); }
-  apply(operation: Operation, generation = this.generation) {
-    if (generation !== this.generation) throw new NaruError('NARU_STALE', 'Stale editor mapping; draft is preserved.');
-    const plan = planOperation(this.snapshot, operation);
-    this.snapshot = plan.next;
-    if (plan.edits.length) this.operations.push(operation);
-    this.generation++;
-    this.notify();
-  }
-  replace(source: string) { this.snapshot = parseDocument(source); this.operations = []; this.generation++; this.epoch++; this.notify(); }
-  notify() { for (const listener of this.listeners) listener(); }
 }
 
 export class BlockEditor {
@@ -113,15 +92,21 @@ export class BlockEditor {
   private dispatch(tr: Transaction) {
     if (!tr.before.eq(this.view.state.doc)) { this.report('Stale transaction rejected.'); return; }
     this.view.updateState(this.view.state.apply(tr));
-    if (!tr.docChanged) return;
+    if (!tr.docChanged) { this.publishSelection(); return; }
     this.session.drafts.set(this.key, this.view.state.doc.textContent);
     if (!this.composing) this.commit(); else this.session.notify();
+  }
+  private publishSelection() {
+    if (this.session.drafts.has(this.key)) return;
+    const { anchor, head } = this.view.state.selection;
+    const point = (position: number) => ({ target: this.target, offset: this.view.state.doc.textBetween(0, position, '', node => String(node.attrs.label ?? '')).length });
+    try { this.session.select(point(anchor), point(head), this.generation, this.epoch); } catch { /* Projection selection is not a valid source selection. */ }
   }
   commit() {
     const draft = this.view.state.doc;
     if (draft.eq(this.baseline.doc)) { this.session.drafts.delete(this.key); this.report(''); this.session.notify(); return; }
     try {
-      if (this.generation !== this.session.generation) throw new NaruError('NARU_STALE', 'Stale snapshot/mapping; draft preserved. Reload explicitly to replace it.');
+      if (this.epoch !== this.session.epoch || this.generation !== this.session.generation) throw new NaruError('NARU_STALE', 'Stale snapshot/mapping; draft preserved. Reload explicitly to replace it.');
       const from = this.baseline.doc.content.findDiffStart(draft.content);
       const end = this.baseline.doc.content.findDiffEnd(draft.content);
       if (from === null || !end) throw new NaruError('NARU_ARGUMENT', 'Unsupported edit.');
@@ -147,7 +132,7 @@ export class BlockEditor {
       this.committing = true;
       this.session.apply(op, this.generation);
       this.baseline = projected; this.generation = this.session.generation;
-      this.session.drafts.delete(this.key); this.report('');
+      this.session.drafts.delete(this.key); this.publishSelection(); this.report('');
     } catch (error) { this.session.drafts.set(this.key, draft.textContent); this.report((error as Error).message); }
     finally { this.committing = false; this.session.notify(); }
   }
@@ -157,7 +142,7 @@ export class BlockEditor {
 /** Display unsupported blocks with the safe renderer; never import/export DOM as source. */
 export function mountDocument(host: HTMLElement, session: SourceSession, report: (message: string) => void): BlockEditor[] {
   host.replaceChildren(); const editors: BlockEditor[] = [];
-  let sectionId: string | undefined, paragraphIndex = 0;
+  const targets = new Map(textTargets(session.snapshot).map(item => [item.block, item.target]));
   const readonly = (parent: HTMLElement, block: Parameters<typeof renderBlockHtml>[0]) => {
     const wrapper = document.createElement('div'); wrapper.className = 'readonly-block'; wrapper.title = 'Read only';
     if (block.type === 'metadata') { const pre = document.createElement('pre'); pre.textContent = session.source.slice(block.range.start, block.range.end); wrapper.append(pre); }
@@ -170,14 +155,13 @@ export function mountDocument(host: HTMLElement, session: SourceSession, report:
   };
   for (const block of session.snapshot.blocks) {
     if (block.type === 'heading') {
-      sectionId = block.id; paragraphIndex = 0;
-      if (block.id) editable(host, { kind: 'heading', id: block.id, index: 0 }, `h${block.level}`); else readonly(host, block);
-    } else if (block.type === 'paragraph' && sectionId) editable(host, { kind: 'paragraph', id: sectionId, index: paragraphIndex++ }, 'div');
+      const target = targets.get(block);
+      if (target) editable(host, target, `h${block.level}`); else readonly(host, block);
+    } else if (block.type === 'paragraph' && targets.has(block)) editable(host, targets.get(block)!, 'div');
     else if (block.type === 'directive' && block.id) {
       const aside = document.createElement('aside'); aside.dataset.directive = block.id; host.append(aside);
       const label = document.createElement('header'); label.textContent = `${block.name} · ${block.id} · ${block.attributes.filter(a => a.key !== 'id').map(a => a.key + ': ' + a.value).join(' · ')}`; aside.append(label);
-      let index = 0;
-      for (const child of block.children) if (child.type === 'paragraph') editable(aside, { kind: 'directiveParagraph', id: block.id, index: index++ }, 'div'); else readonly(aside, child);
+      for (const child of block.children) if (child.type === 'paragraph' && targets.has(child)) editable(aside, targets.get(child)!, 'div'); else readonly(aside, child);
     } else readonly(host, block);
   }
   return editors;

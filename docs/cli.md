@@ -308,3 +308,7 @@ CLI JSON plan/DTO와 웹 요청은 같은 Node reader로 duplicate key(escaped k
 
 직접 JS API의 unknown field/잘못된 enum·기본 타입 거부와 웹 duplicate key 거부가 강화되었다. 기존 정상 명령·문법·저장 형식과 schemaVersion은 유지되며 migration은 없다. 진단 message 문자열에 의존하지 말고 code와 실패 index로 처리한다. 상세 선택은 [ADR 0010](adr/0010-executable-operation-contract.md)을 참고한다.
 `planOperation` 직접 호출의 음수·소수·비안전 정수 index는 이제 공통 shape 오류 `NARU_ARGUMENT`이다. 유효한 정수가 현재 문서 범위를 벗어나면 `NARU_TARGET`이며 기존 CLI 종료 코드 2는 유지한다.
+
+## 대상 조회와 단계 위치
+
+`get <file> --id <id> --json`의 최상위 `targets`는 heading/section/directive paragraph의 의미 target을 반환한다. `table get`의 최상위 `target`은 sectionId/tableIndex를 반환한다. `scope: current-step-snapshot`은 이 index가 영속 ID가 아님을 명시한다. A/B 앞에 X를 삽입한 batch의 다음 단계에서는 index 1이 A, 2가 B다. 외부 파일 변경은 별도의 `--revision`으로 검사한다. `text set`의 inline path도 해당 snapshot에만 속하는 advanced API이며 일반 사용자는 paragraph/title 명령을 우선한다.

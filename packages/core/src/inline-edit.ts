@@ -1,31 +1,7 @@
-import { NaruError, boundary, wellFormed, type DocumentSnapshot, type Inline, type TextTarget, type SetInlineTextOperation } from '@naruforge/narudoc-model';
-import { getById, getSection } from './query.js';
+import { NaruError, boundary, wellFormed, type DocumentSnapshot, type Inline, type SetInlineTextOperation } from '@naruforge/narudoc-model';
+import { textTarget } from './query.js';
 import { minimalEdit } from './patch.js';
 
-export function textTarget(doc: DocumentSnapshot, target: TextTarget) {
-  if (!Number.isSafeInteger(target.index) || target.index < 0) throw new NaruError('NARU_ARGUMENT', 'Text target index must be a non-negative safe integer.');
-  if (target.kind === 'heading') {
-    if (target.index !== 0) throw new NaruError('NARU_ARGUMENT', 'Heading index must be zero.');
-    return getSection(doc, target.id).heading;
-  }
-  if (target.kind === 'directiveParagraph') {
-    const node = getById(doc, target.id);
-    if (node.type !== 'directive') throw new NaruError('NARU_TARGET', 'Expected directive.');
-    const paragraph = node.children.filter(b => b.type === 'paragraph')[target.index];
-    if (!paragraph) throw new NaruError('NARU_TARGET', 'Paragraph index is out of range.');
-    return paragraph;
-  }
-  if (target.kind !== 'paragraph') throw new NaruError('NARU_ARGUMENT', 'Unknown text target kind.');
-  const section = getSection(doc, target.id);
-  const paragraphs = [];
-  for (const block of doc.blocks.slice(doc.blocks.indexOf(section.heading) + 1)) {
-    if (block.type === 'heading') break;
-    if (block.type === 'paragraph') paragraphs.push(block);
-  }
-  const paragraph = paragraphs[target.index];
-  if (!paragraph) throw new NaruError('NARU_TARGET', 'Paragraph index is out of range.');
-  return paragraph;
-}
 function inlineSlot(nodes: Inline[], path: string): { nodes: Inline[]; index: number } {
   if (typeof path !== 'string' || !/^\d+(?:\.\d+)*$/.test(path)) throw new NaruError('NARU_ARGUMENT', 'Inline path must be dot-separated indices.');
   let node: Inline | undefined;

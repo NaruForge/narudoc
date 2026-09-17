@@ -1,6 +1,6 @@
 import { ID_PATTERN, NaruError, readOperation, validKey, wellFormed, type DocumentSnapshot, type EditPlan, type Operation, type TextEdit } from '@naruforge/narudoc-model';
 import { parseDocument } from '@naruforge/narudoc-parser';
-import { getById, getSection, getTable } from './query.js';
+import { getById, getSection, getTable, directSectionBody, textTarget } from './query.js';
 import { readTableInput, tableCellText, tableSource } from './table-input.js';
 import { inlineTextEdits, assertInlineResult } from './inline-edit.js';
 import { assertValid } from './validation.js';
@@ -46,9 +46,7 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
     case 'setInlineText': edits = inlineTextEdits(doc, operation); break;
     case 'insertTable': {
       const input = readTableInput({ headers: operation.headers, rows: operation.rows });
-      const section = getSection(doc, operation.sectionId);
-      let end = doc.blocks.indexOf(section.heading) + 1;
-      while (end < doc.blocks.length && doc.blocks[end]!.type !== 'heading') end++;
+      const { endIndex: end } = directSectionBody(doc, operation.sectionId);
       const point = doc.blocks[end - 1]!.range.end, next = doc.blocks[end];
       const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
       edits = [{ start: point, end: point, expected: '', text: doc.eol.repeat(2) + tableSource(input, doc.eol) + right }]; break;
@@ -64,10 +62,8 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
     }
     case 'insertDirective': {
       const input = readInsertDirective(operation);
-      const section = getSection(doc, input.sectionId);
+      const { endIndex: end } = directSectionBody(doc, input.sectionId);
       if (doc.blocks.some(block => 'id' in block && block.id === input.id)) throw new NaruError('NARU_ARGUMENT', `ID already exists: ${input.id}`);
-      let end = doc.blocks.indexOf(section.heading) + 1;
-      while (end < doc.blocks.length && doc.blocks[end]!.type !== 'heading') end++;
       const point = doc.blocks[end - 1]!.range.end, next = doc.blocks[end];
       const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
       edits = [{ start: point, end: point, expected: '', text: doc.eol.repeat(2) + directiveSource(input, doc.eol) + right }]; break;
@@ -127,11 +123,8 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
       edits = [{ start: target.start, end: target.end, expected: chunk, text: '' }, { start: point, end: point, expected: '', text }]; break;
     }
     case 'insertParagraph': {
-      const section = getSection(doc, operation.id);
-      const start = doc.blocks.indexOf(section.heading) + 1;
-      let end = start;
-      while (end < doc.blocks.length && doc.blocks[end]!.type !== 'heading') end++;
-      const paragraphs = doc.blocks.slice(start, end).filter(block => block.type === 'paragraph');
+      const { endIndex: end, blocks } = directSectionBody(doc, operation.id);
+      const paragraphs = blocks.filter(block => block.type === 'paragraph');
       if (!Number.isSafeInteger(operation.index) || operation.index < 0 || operation.index > paragraphs.length) throw new NaruError('NARU_TARGET', 'Paragraph insertion index is out of range.');
       if (typeof operation.text !== 'string' || !wellFormed(operation.text)) throw new NaruError('NARU_ARGUMENT', 'Text must be a well-formed Unicode string.');
       const paragraph = operation.text.replace(/\r\n|\r|\n/g, doc.eol);
@@ -153,15 +146,7 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
       edits = [{ start: point, end: point, expected: '', text: left + paragraph + right }]; break;
     }
     case 'replaceParagraph': {
-      const section = getSection(doc, operation.id);
-      const startIndex = doc.blocks.indexOf(section.heading);
-      const direct = [];
-      for (const block of doc.blocks.slice(startIndex + 1)) {
-        if (block.type === 'heading') break;
-        if (block.type === 'paragraph') direct.push(block);
-      }
-      if (!Number.isInteger(operation.index) || operation.index < 0 || !direct[operation.index]) throw new NaruError('NARU_TARGET', 'Paragraph index is out of range.');
-      const target = direct[operation.index]!;
+      const target = textTarget(doc, { kind: 'paragraph', id: operation.id, index: operation.index });
       if (operation.text === source.slice(target.range.start, target.range.end)) { edits = []; break; }
       const replacement = operation.text.replace(/\r\n|\r|\n/g, doc.eol);
       const standalone = parseDocument(replacement), standaloneBlock = standalone.blocks[0];
@@ -173,12 +158,7 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
       edits = minimalEdit(source, target.range.start, target.range.end, replacement); break;
     }
     case 'replaceDirectiveParagraph': {
-      const node = getById(doc, operation.id);
-      if (node.type !== 'directive') throw new NaruError('NARU_TARGET', 'Target is not a directive.');
-      const paragraphs = node.children.filter(child => child.type === 'paragraph');
-      if (!Number.isSafeInteger(operation.index) || operation.index < 0 || !paragraphs[operation.index]) throw new NaruError('NARU_TARGET', 'Directive paragraph index is out of range.');
-      if (typeof operation.text !== 'string' || !wellFormed(operation.text)) throw new NaruError('NARU_ARGUMENT', 'Replacement must be a well-formed Unicode string.');
-      const target = paragraphs[operation.index]!;
+      const target = textTarget(doc, { kind: 'directiveParagraph', id: operation.id, index: operation.index });
       // An exact no-op must also retain mixed line endings within this paragraph.
       if (operation.text === source.slice(target.range.start, target.range.end)) { edits = []; break; }
       const replacement = operation.text.replace(/\r\n|\r|\n/g, doc.eol);

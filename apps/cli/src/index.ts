@@ -2,7 +2,7 @@ import { startEditor, openBrowser } from '@naruforge/narudoc-web';
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { BatchOperationError, NaruError, type TextEdit } from '@naruforge/narudoc-model';
-import { assertValid, createDocument, getById, getSection, getTable, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
+import { assertValid, createDocument, getById, getSection, getTable, targetMetadata, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
 import { renderHtml } from '@naruforge/narudoc-renderer-html';
 import { assertDocumentSize, createFile, load, readStdin, revision, save } from './io.js';
 import { parseJsonInput } from './json.js';
@@ -90,7 +90,7 @@ export async function main(args: string[]): Promise<number> {
       case 'table get': {
         const node = getTable(doc, need('section'), integer('index'));
         const text = source.slice(node.range.start, node.range.end);
-        if (json) emit({ ...envelope, node, source: text }); else process.stdout.write(text);
+        if (json) emit({ ...envelope, node, source: text, target: { sectionId: need('section'), tableIndex: integer('index'), scope: 'current-step-snapshot' } }); else process.stdout.write(text);
         return 0;
       }
       case 'batch': {
@@ -115,7 +115,7 @@ export async function main(args: string[]): Promise<number> {
         const node = getById(doc, need('id'));
         const range = node.type === 'heading' ? getSection(doc, need('id')) : node.range;
         const text = source.slice(range.start, range.end);
-        if (json) emit({ ...envelope, node, source: text }); else process.stdout.write(text);
+        if (json) emit({ ...envelope, node, source: text, targets: targetMetadata(doc, need('id')) }); else process.stdout.write(text);
         return 0;
       }
       case 'validate': {
