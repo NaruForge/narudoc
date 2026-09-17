@@ -137,3 +137,36 @@ test('pointer selection supports cut and plain clipboard paste as single undo ge
   const pasted = await source(page); expect(pasted).not.toBe(fixture); expect(pasted).toContain('Deltagamma.\n\nDelta epsilon.');
   await page.keyboard.press('Control+z'); await expect.poll(() => source(page)).toBe(fixture);
 });
+
+test('marked heading edits and composition preserve authored inline source across save and reload', async ({ page }) => {
+  const original = fixture.replace('# Control  {#control}', '# **Control** *Mode* [heading link](#details) `heading code` \\*heading escape  {#control}');
+  await writeFile(file, original); await page.locator('#reload').click();
+  await expect.poll(() => source(page)).toBe(original);
+  await selectText(page, 'heading', 'control', 0, 'ont'); await page.keyboard.type('XYZ');
+  await expect.poll(() => source(page)).toBe(original.replace('**Control**', '**CXYZrol**'));
+  await selectText(page, 'heading', 'control', 0, 'XYZ'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('Backspace');
+  await page.keyboard.press('Delete');
+  await expect.poll(() => source(page)).toBe(original.replace('**Control**', '**CXYol**'));
+  await selectText(page, 'heading', 'control', 0, 'ode'); await page.keyboard.type('ix');
+  const edited = original.replace('**Control** *Mode*', '**CXYol** *Mix*');
+  await expect.poll(() => source(page)).toBe(edited);
+  for (const label of ['heading link', 'heading code', ' *heading escape']) {
+    await selectProtected(page, label); await page.keyboard.press('Backspace');
+    expect(await source(page)).toBe(edited); await expect(page.getByRole('alert')).not.toBeEmpty();
+  }
+  await selectText(page, 'heading', 'control', 0, 'XY');
+  const box = page.getByRole('textbox', { name: 'heading control 0', exact: true });
+  await box.dispatchEvent('compositionstart', { data: '' }); await page.keyboard.insertText('한글😀');
+  expect(await source(page)).toBe(edited); await expect(page.locator('#save')).toBeDisabled();
+  await box.dispatchEvent('compositionend', { data: '한글😀' });
+  const expected = original.replace('**Control** *Mode*', '**C한글😀ol** *Mix*');
+  await expect.poll(() => source(page)).toBe(expected);
+  await page.keyboard.press('Control+z'); await expect.poll(() => source(page)).toBe(edited);
+  await page.keyboard.press('Control+y'); await expect.poll(() => source(page)).toBe(expected);
+  await page.locator('#save').click(); await expect(page.locator('#state')).toHaveText('Saved');
+  expect(await readFile(file, 'utf8')).toBe(expected);
+  await page.locator('#reload').click(); await expect(page.locator('#state')).toHaveText('Saved');
+  expect(await source(page)).toBe(expected);
+  await expect(box.locator('strong')).toHaveText('C한글😀ol'); await expect(box.locator('em')).toHaveText('Mix');
+  await expect(page.locator('#diagnostics')).toContainText('No validation errors');
+});

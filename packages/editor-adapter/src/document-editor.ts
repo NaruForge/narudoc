@@ -303,15 +303,8 @@ export class DocumentEditor {
 
   private applyRange(from: number, to: number, text: string): boolean {
     if (this.composing || this.virtual) return false;
-    const heading = this.headingRange(from, to);
-    if (heading) {
-      const operation: Operation = { type: 'setHeadingTitle', id: heading.start.target.id, title: heading.block.text.slice(0, heading.start.offset) + text + heading.block.text.slice(heading.end.offset) };
-      const cursor = { target: heading.start.target, offset: heading.start.offset + text.length };
-      if (!this.commitOperations([operation], cursor)) this.retainDraft(from, to, text);
-      return true;
-    }
     const single = this.singleTargetRange(from, to);
-    if (single?.start.target.kind === 'directiveParagraph') {
+    if (single && (single.start.target.kind === 'heading' || single.start.target.kind === 'directiveParagraph')) {
       const draft = this.view.state.tr.insertText(text, from, to).doc;
       this.commitInlineDraft(single.start.target, single.start.offset, single.end.offset, text, draft, { target: single.start.target, offset: single.start.offset + text.length });
       return true;
@@ -455,15 +448,7 @@ export class DocumentEditor {
       if (first < 0 || last < first) return;
       const oldFirst = base[first]!, newFirst = current[first]!, oldLast = base[last]!, newLast = current[last]!;
       const prefix = commonPrefix(oldFirst.text, newFirst.text), suffix = commonSuffix(oldLast.text, newLast.text, first === last ? prefix : 0);
-      if (first === last && oldFirst.target?.kind === 'heading') {
-        const operation: Operation = { type: 'setHeadingTitle', id: oldFirst.target.id, title: newFirst.text };
-        try {
-          const candidate = planOperation(this.session.snapshot, operation);
-          if (blockProjection(candidate.next).doc.eq(this.view.state.doc)) this.commitOperations([operation], { target: oldFirst.target, offset: newFirst.text.length - suffix });
-        } catch (error) { this.report((error as Error).message); }
-        return;
-      }
-      if (first === last && oldFirst.target?.kind === 'directiveParagraph') {
+      if (first === last && (oldFirst.target?.kind === 'heading' || oldFirst.target?.kind === 'directiveParagraph')) {
         this.commitInlineDraft(oldFirst.target, prefix, oldFirst.text.length - suffix, newFirst.text.slice(prefix, newFirst.text.length - suffix), this.view.state.doc, { target: oldFirst.target, offset: newFirst.text.length - suffix });
         return;
       }
