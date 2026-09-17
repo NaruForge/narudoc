@@ -21,7 +21,7 @@ Node JSON helper는 기존 file-store에서 CLI·웹이 공유한다. Duplicate 
 
 ## Consequences
 
-새 operation은 하나의 실행 입력 정의와 Core 구현, 필요한 client binding을 추가한다. CLI와 GUI의 표면을 1:1로 강제하지 않는다. 작은 schema reader 자체는 유지 비용이며 지원 어휘를 늘릴 때 inference·runtime·발견 출력 검사를 함께 바꿔야 한다. schema-valid는 document-valid를 의미하지 않는다.
+새 operation은 하나의 실행 입력 정의와 Core 구현, 필요한 client binding을 추가한다. CLI와 GUI의 표면을 1:1로 강제하지 않는다. Client binding의 명시적 null은 별도 명령 없이 기존 API/batch 경로를 선택하며 capability는 그 batch 예제를 반환한다. 선택 자체의 누락은 drift 오류다. 현재 14개 독립 명령의 호환성은 전체 실행 예제로 유지한다. 작은 schema reader 자체는 유지 비용이며 지원 어휘를 늘릴 때 inference·runtime·발견 출력 검사를 함께 바꿔야 한다. schema-valid는 document-valid를 의미하지 않는다.
 
 기존 명령·flag·envelope `schemaVersion:1`과 문법은 유지한다. 웹 duplicate key, 직접 JS Core 호출의 unknown field/잘못된 enum·기본 타입 거부는 강화된다. 진단 message 문자열보다 code/operationIndex를 사용한다. 웹 diagnostics/operationIndex는 추가 필드다. 기존 명령 입력을 재작성하거나 문서를 migration하지 않는다. 정확히 같은 section 문단을 교체할 때 mixed EOL이 정규화되던 결함도 no-op 계약에 맞게 수정한다.
 
