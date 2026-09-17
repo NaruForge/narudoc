@@ -49,7 +49,7 @@ body:
     id: acceptance
     attributes:
       label: 검증 가능한 완료 조건
-      description: 무엇을 어떻게 확인해야 작업이 완료되는지 적으세요.
+      description: 무엇을 어떻게 확인해야 완료되는지 적으세요. 입력·책임 경계 변경은 공통 계약 재사용과 불일치 시 실패하는 검증을 포함하세요. 문서 수나 키워드만으로 완료를 판단하지 않습니다.
     validations:
       required: true
   - type: textarea

@@ -16,6 +16,13 @@ import { checkGenerated, verifyContracts } from '../../scripts/verify-contracts.
 const cliPath = fileURLToPath(new URL('../../apps/cli/bin/narudoc.mjs', import.meta.url));
 const cli = (args, input) => spawnSync(process.execPath, [cliPath, ...args], { input, encoding: 'utf8' });
 const source = '\uFEFF# Control  {#control}\r\n\r\nA.\r\n\r\n| Parameter | Value |\r\n| --- | --- |\r\n| Voltage | 400 |\r\n\r\n:::requirement\r\nid: REQ-1\r\nstatus: draft\r\n\r\nCheck voltage.\r\n:::\r\n\r\n## Details {#details}\r\n\r\nKeep 한글 😀.\r\n\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n';
+test('prototype names are unknown commands, not internal exceptions', () => {
+  for (const command of ['constructor', 'toString', '__proto__']) {
+    const result = cli([command, '--json']);
+    assert.equal(result.status, 2);
+    assert.equal(JSON.parse(result.stderr).error.code, 'NARU_ARGUMENT');
+  }
+});
 test('public TypeScript inputs infer required/optional fields and enums from definitions', () => {
   const program = ts.createProgram([fileURLToPath(new URL('../contracts/input-types.ts', import.meta.url))], { noEmit: true, strict: true, skipLibCheck: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext });
   assert.deepEqual(ts.getPreEmitDiagnostics(program).map(d => ts.flattenDiagnosticMessageText(d.messageText, '\n')), []);

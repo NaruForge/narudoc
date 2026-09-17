@@ -1,4 +1,4 @@
-import { SourceSession, mountDocument, undo, redo } from '../../packages/editor-adapter/dist/index.js';
+import { SourceSession, mountDocument, undo, redo } from '@naruforge/narudoc-editor-adapter';
 import initial from '../../examples/visual-fidelity.narudoc';
 let session, editors, active;
 const host = document.querySelector('#editor'), diagnostic = document.querySelector('#diagnostic');
