@@ -21,3 +21,31 @@ test('unsafe markdown URLs render label without anchor', () => {
   const html = renderHtml(parseDocument('[unsafe](javascript:bad) [safe](https://example.com)'));
   assert.ok(!html.includes('href="javascript:')); assert.ok(html.includes('href="https://example.com"'));
 });
+test('figures render through the caller-provided URL mapping and never read files', async () => {
+  const { resolveReferences } = await import('../../packages/core/dist/index.js');
+  const doc = parseDocument(String.raw`# D {#d}
+
+See [@fig-a].
+
+@figure id="fig-a" src="assets/pixel.png" alt="A <diagram>" caption="A \"caption\""
+
+@figure id="fig-b" src="assets/gone.png" alt=""
+`);
+  const context = resolveReferences(doc);
+  const html = renderHtml(doc, context, { assetUrl: src => src === 'assets/pixel.png' ? '/mapped/pixel.png' : undefined });
+  assert.match(html, /<figure id="fig-a"><img src="\/mapped\/pixel\.png" alt="A &lt;diagram&gt;"><figcaption>Figure 1: A &quot;caption&quot;<\/figcaption><\/figure>/);
+  assert.match(html, /<figure id="fig-b"><span class="missing-asset">Image unavailable: assets\/gone\.png<\/span><figcaption>Figure 2<\/figcaption><\/figure>/);
+  assert.match(html, /<a href="#fig-a" data-reference="fig-a">Figure 1<\/a>/);
+  assert.match(html, /img-src 'self'/, 'figure documents relax only img-src');
+  const unmapped = renderHtml(doc, context);
+  assert.ok(!unmapped.includes('<img'), 'without a URL mapping every figure is a placeholder');
+  assert.match(unmapped, /Image unavailable: assets\/pixel\.png/);
+  const figureOnly = parseDocument('# D {#d}\n\n@figure id="f" src="a.png" alt="a"\n');
+  assert.throws(() => renderHtml(figureOnly), { code: 'NARU_RENDER_CONTEXT' }, 'figures require their context');
+  assert.ok(!renderHtml(parseDocument('# D {#d}\n')).includes("img-src"), 'no figure keeps the strict CSP');
+});
+test('assetHref encodes segments without decoding literal percent, hash, space or Hangul', async () => {
+  const { assetHref } = await import('../../packages/renderer-html/dist/index.js');
+  assert.equal(assetHref('assets/pixel.png'), 'assets/pixel.png');
+  assert.equal(assetHref('assets/제어 #1 100%.png'), 'assets/%EC%A0%9C%EC%96%B4%20%231%20100%25.png');
+});

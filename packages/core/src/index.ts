@@ -7,3 +7,4 @@ export * from './operations.js';
 export * from './batch.js';
 export { readDirectiveInput } from './directive-input.js';
 export { readTableInput } from './table-input.js';
+export { figureSource, figureMetadataEdits, type FigureInput } from './figure-edit.js';

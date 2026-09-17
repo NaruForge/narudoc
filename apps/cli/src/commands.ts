@@ -11,6 +11,8 @@ export const operationBindings: Bindings = {
   setReferenceTarget: { command: 'reference set-target', fields: { id: 'id', index: 'index', path: 'path', expectedTargetId: 'expected-target-id', targetId: 'target-id' } },
   setTableCell: { command: 'table set-cell', fields: { sectionId: 'section', tableIndex: 'index', part: 'part', row: 'row', column: 'column', text: 'text' } },
   insertDirective: { command: 'directive insert', fields: { sectionId: 'section', name: { from: 'from' }, id: { from: 'from' }, attributes: { from: 'from' }, children: { from: 'from' } } },
+  insertFigure: { command: 'figure insert', fields: { sectionId: 'section', id: 'id', src: 'src', alt: 'alt', caption: 'caption' } },
+  setFigureMetadata: { command: 'figure set', fields: { id: 'id', src: 'src', alt: 'alt', caption: 'caption' } },
   renameId: { command: 'id rename', fields: { id: 'id', newId: 'new-id' } },
   setHeadingTitle: { command: 'heading set-title', fields: { id: 'id', title: 'title' } },
   insertSection: { command: 'section insert', fields: { after: 'after', id: 'id', title: 'title' } },

@@ -52,7 +52,7 @@ function normalized(nodes: Inline[]): unknown[] {
 }
 export function referenceEdits(doc: DocumentSnapshot, op: ReferenceOperation): { edits: TextEdit[]; expected: Inline[] } {
   const target = getById(doc, op.targetId);
-  if (target.type !== 'table') throw new NaruError('NARU_ARGUMENT', 'Semantic reference target must be a table.');
+  if (target.type !== 'table' && target.type !== 'figure') throw new NaruError('NARU_ARGUMENT', 'Semantic reference target must be a table or figure.');
   const block = textTarget(doc, { kind: 'paragraph', id: op.id, index: op.index });
   const expected = JSON.parse(JSON.stringify(block.inline)) as Inline[], selected = slot(expected, op.path), leaf = selected.nodes[selected.index];
   if (op.type === 'setReferenceTarget') {

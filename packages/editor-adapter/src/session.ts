@@ -78,6 +78,7 @@ function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, ope
     case 'insertTable':
     case 'setTableMetadata': case 'insertReference': case 'setReferenceTarget':
     case 'insertDirective':
+    case 'insertFigure': case 'setFigureMetadata':
     case 'removeSection':
     case 'moveSection':
       return undefined;

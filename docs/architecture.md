@@ -4,7 +4,9 @@
 
 ## 의존 경계
 
-표 ID/번호와 의미 참조는 Core의 `resolveReferences(snapshot)`이 한 번의 해석 결과로 제공한다. Model의 `ReferenceContext`는 해당 snapshot 및 node identity와 결합하며 renderer/adapter/표시 offset 계산이 공유한다. `renderHtml(snapshot, context?)`, `renderBlockHtml(block, context?)`은 새 의미 요소에서 context를 요구하고 다른 snapshot/node의 context를 `NARU_RENDER_CONTEXT`로 거부한다. 기존 일반 블록 호출은 context 없이 유지한다. Invalid 문서에는 같은 snapshot에서 만든 진단 context로 unresolved 문자열을 표시한다. 번호를 source에 저장하거나 renderer가 Core를 import하지 않는다. [Proposed ADR 0012](adr/0012-table-semantic-references.md)는 이 선택을 기록하며 채택을 뜻하지 않는다.
+표·그림 ID/번호와 의미 참조는 Core의 `resolveReferences(snapshot)`이 한 번의 해석 결과로 제공한다. 번호 계열은 Table과 Figure가 분리된 1-based 순번이며 번호를 source에 저장하지 않는다. Model의 `ReferenceContext`는 해당 snapshot 및 node identity와 결합하며 renderer/adapter/표시 offset 계산이 공유한다. `renderHtml(snapshot, context?, options?)`, `renderBlockHtml(block, context?, options?)`은 새 의미 요소에서 context를 요구하고 다른 snapshot/node의 context를 `NARU_RENDER_CONTEXT`로 거부한다. 기존 일반 블록 호출은 context 없이 유지한다. Invalid 문서에는 같은 snapshot에서 만든 진단 context로 unresolved 문자열을 표시한다. Renderer가 Core를 import하지 않는다. [Proposed ADR 0012](adr/0012-table-semantic-references.md)는 이 선택을 기록하며 채택을 뜻하지 않는다.
+
+Figure의 파일 검증은 엔진이 아니라 file-store의 asset resolver가 소유한다. Resolver는 문서 폴더를 root로 경로·존재·link·형식·크기를 검사하고 구조화된 `NARU_ASSET_*` 진단을 돌려주며 아무것도 쓰지 않는다. CLI와 웹은 이 resolver를 공유하며 저장·export 전에 결과 문서의 자산을 검증한다. Renderer는 호스트가 제공하는 URL mapping(`assetUrl`)만 사용하고 파일·네트워크를 읽지 않는다. 누락 asset은 문서 오류가 아니라 resource 진단이므로 문서는 읽기·복구 편집이 가능하고 placeholder로 표시된다. [Proposed ADR 0013](adr/0013-figure-local-assets.md)이 root/link 정책을 기록한다.
 
 | 책임 | 허용 의존 |
 | --- | --- |
@@ -52,7 +54,7 @@ Core query의 직접 본문/text/table resolver를 CLI와 adapter가 재사용�
 
 CLI·웹은 file-store의 strict UTF-8, SHA-256 revision, cooperative lock, pre-save revision check, 같은 폴더 temporary file + rename, 크기 제한, symlink/hardlink 제한과 no-clobber를 공유한다. Lock을 자동으로 빼앗지 않는다. Dry-run은 저장 함수를 호출하지 않으며 실제 저장 성공의 보장은 아니다. 비협조적 writer에 대한 완전한 compare-and-swap이나 전원 장애 내구성은 보장하지 않는다. [ADR0004](adr/0004-file-save-guarantees.md)가 경계를 설명한다.
 
-웹은 한 지정 파일만 다루며 Host/Origin/token/CSRF 검사 후 operations를 서버에서 재계획한다. 브라우저 raw source를 그대로 저장하지 않는다. 충돌은 draft를 유지하며 overwrite를 거부한다. [로컬 보안 계약](local-editor.md)과 [ADR0009](adr/0009-local-editor-save-boundary.md)를 따른다. Renderer는 model만 받아 text/attribute를 escape하고 위험 URL을 막으며 raw HTML/script·문서 code를 실행하거나 파일/네트워크를 읽지 않는다.
+웹은 한 지정 파일만 다루며 Host/Origin/token/CSRF 검사 후 operations를 서버에서 재계획한다. 브라우저 raw source를 그대로 저장하지 않는다. 충돌은 draft를 유지하며 overwrite를 거부한다. Figure 이미지는 client가 경로를 보내는 방식이 아니라 현재 문서의 figure src를 세션 token으로 HMAC한 opaque URL로만 제공하며, 응답 MIME은 sniff 결과이고 `nosniff`·`img-src 'self'`를 유지한다. [로컬 보안 계약](local-editor.md)과 [ADR0009](adr/0009-local-editor-save-boundary.md)를 따른다. Renderer는 model만 받아 text/attribute를 escape하고 위험 URL을 막으며 raw HTML/script·문서 code를 실행하거나 파일/네트워크를 읽지 않는다.
 
 ## 파서와 새 기능 배치
 

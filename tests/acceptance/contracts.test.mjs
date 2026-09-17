@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +15,7 @@ import { checkGenerated, verifyContracts } from '../../scripts/verify-contracts.
 
 const cliPath = fileURLToPath(new URL('../../apps/cli/bin/narudoc.mjs', import.meta.url));
 const cli = (args, input) => spawnSync(process.execPath, [cliPath, ...args], { input, encoding: 'utf8' });
-const source = '\uFEFF# Control  {#control}\r\n\r\nA.\r\n\r\n| Parameter | Value |\r\n| --- | --- |\r\n| Voltage | 400 |\r\n\r\n:::requirement\r\nid: REQ-1\r\nstatus: draft\r\n\r\nCheck voltage.\r\n:::\r\n\r\n## Details {#details}\r\n\r\nKeep 한글 😀.\r\n\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n\r\n# Join {#join}\r\n\r\nLeft.\r\n\r\nRight.\r\n\r\n# Refs {#ref-section}\r\n\r\nSee [@tab-example].\r\n\r\n@table id="tab-example"\r\n| X |\r\n| --- |\r\n\r\n@table id="tab-other"\r\n| Y |\r\n| --- |\r\n';
+const source = '\uFEFF# Control  {#control}\r\n\r\nA.\r\n\r\n| Parameter | Value |\r\n| --- | --- |\r\n| Voltage | 400 |\r\n\r\n:::requirement\r\nid: REQ-1\r\nstatus: draft\r\n\r\nCheck voltage.\r\n:::\r\n\r\n## Details {#details}\r\n\r\nKeep 한글 😀.\r\n\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n\r\n# Join {#join}\r\n\r\nLeft.\r\n\r\nRight.\r\n\r\n# Refs {#ref-section}\r\n\r\nSee [@tab-example].\r\n\r\n@table id="tab-example"\r\n| X |\r\n| --- |\r\n\r\n@table id="tab-other"\r\n| Y |\r\n| --- |\r\n\r\n@figure id="fig-existing" src="assets/control.png" alt="Existing"\r\n';
 test('prototype names are unknown commands, not internal exceptions', () => {
   for (const command of ['constructor', 'toString', '__proto__']) {
     const result = cli([command, '--json']);
@@ -49,10 +49,14 @@ const expected = {
   replaceParagraphRange: source.replace('A.', 'A revised.'),
   replaceDirectiveParagraph: source.replace('Check voltage.', 'Check revised voltage.'),
   setDirectiveAttribute: source.replace('status: draft', 'status: verified'),
+  insertFigure: source.replace(':::\r\n\r\n## Details', ':::\r\n\r\n@figure id="fig-control" src="assets/control.png" alt="Control loop diagram" caption="Control layout"\r\n\r\n## Details'),
+  setFigureMetadata: source.replace('@figure id="fig-existing" src="assets/control.png" alt="Existing"', '@figure id="fig-existing" src="assets/control.png" alt="Existing figure" caption="Added caption"'),
 };
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'naru-contract-')), file = join(dir, 'practice.narudoc');
   await writeFile(file, source); t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, 'assets'));
+  await copyFile(fileURLToPath(new URL('../fixtures/assets/pixel.png', import.meta.url)), join(dir, 'assets', 'control.png'));
   const server = await startEditor(file); t.after(() => server.close());
   const post = async (operations, raw) => {
     const response = await fetch(server.origin + '/api/save', { method: 'POST', headers: { Origin: server.origin, Authorization: 'Bearer ' + server.token, 'Content-Type': 'application/json' }, body: raw ?? JSON.stringify({ revision: revision(source), operations }) });
@@ -90,6 +94,9 @@ test('common invalid corpus keeps failure codes/index and original bytes/mtime a
     { ...valid, title: 2 }, { ...valid, unexpected: true }, { ...valid, id: 'missing' },
     { ...valid, title: '[broken](#missing)' },
     { type: 'insertDirective', ...operationDefinitions.insertDirective.example, children: [{ type: 'code', value: 'x', extra: true }] },
+    { type: 'insertFigure', sectionId: 'control', id: 'fig-bad', src: '../x.png', alt: 'x' },
+    { type: 'insertFigure', sectionId: 'control', id: 'fig-bad', src: 'x.svg', alt: 'x' },
+    { type: 'setFigureMetadata', id: 'control', alt: 'x' },
     { ...valid, title: '\ud800' },
   ];
   for (const bad of corpus) {
@@ -137,7 +144,7 @@ test('all help levels are file-free and capability is bounded; intentional contr
   for (const args of [[], ['table'], ['table', 'set-cell', 'does-not-exist.narudoc']]) {
     const result = cli([...args, '--help']); assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /narudoc/);
   }
-  const list = capabilities(); assert.equal(list.operations.length, 20); assert.ok(!JSON.stringify(list).includes('properties'));
+  const list = capabilities(); assert.equal(list.operations.length, 22); assert.ok(!JSON.stringify(list).includes('properties'));
   for (const type of Object.keys(operationDefinitions)) { readOperation(capabilities(type).example); assert.match(commandHelp((operationBindings[type]?.command ?? 'batch').split(' ')), /Example:/); }
   assert.throws(() => checkBindings(operationDefinitions, { ...operationBindings, fake: { command: 'fake', fields: {} } }), /coverage drift/);
   const wrong = structuredClone(operationBindings); delete wrong.setTableCell.fields.part;

@@ -1,0 +1,19 @@
+---
+title: Figure assets
+---
+# Control {#control}
+
+The control loop appears in [@fig-control] and its limits in [@tab-limits].
+
+@figure id="fig-control" src="assets/control.png" alt="Control loop block diagram" caption="Control layout"
+
+@table id="tab-limits" caption="Operating limits"
+| Parameter | Value |
+| --- | --- |
+| Voltage | 400 |
+
+## Revision {#revision}
+
+The revised loop appears in [@fig-revised].
+
+@figure id="fig-revised" src="assets/control-revised.png" alt="Revised control loop block diagram"

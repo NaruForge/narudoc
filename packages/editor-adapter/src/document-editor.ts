@@ -49,13 +49,13 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]!));
 }
 
-function protectedHtml(snapshot: DocumentSnapshot, block: Block, context = resolveReferences(snapshot)): { html: string; label: string; target?: string } {
+function protectedHtml(snapshot: DocumentSnapshot, block: Block, context = resolveReferences(snapshot), assetUrl?: (src: string) => string | undefined): { html: string; label: string; target?: string } {
   if (block.type === 'metadata') return { html: `<pre>${escapeHtml(snapshot.source.slice(block.range.start, block.range.end))}</pre>`, label: 'Read-only metadata' };
-  return { html: renderBlockHtml(block, context), label: `Read-only ${block.type}`, target: block.type === 'table' ? block.id ?? '' : '' };
+  return { html: renderBlockHtml(block, context, ...(assetUrl ? [{ assetUrl }] : [])), label: `Read-only ${block.type}`, target: block.type === 'table' || block.type === 'figure' ? block.id ?? '' : '' };
 }
 
-function protectedChildHtml(snapshot: DocumentSnapshot, block: Block, context: ReferenceContext): { html: string; label: string; target?: string } {
-  return protectedHtml(snapshot, block, context);
+function protectedChildHtml(snapshot: DocumentSnapshot, block: Block, context: ReferenceContext, assetUrl?: (src: string) => string | undefined): { html: string; label: string; target?: string } {
+  return protectedHtml(snapshot, block, context, assetUrl);
 }
 
 function inlineNodes(snapshot: DocumentSnapshot, nodes: Inline[], prefix = '', marks: Mark[] = [], context = resolveReferences(snapshot)): PMNode[] {
@@ -77,11 +77,11 @@ function editableParagraph(snapshot: DocumentSnapshot, target: TextTarget, block
   return schema.nodes.paragraph!.create({ target: targetKey(target), label: `${target.kind} ${target.id} ${target.index}`, container }, inlineNodes(snapshot, block.inline, '', [], context));
 }
 
-function blockProjection(snapshot: DocumentSnapshot): Projection {
+function blockProjection(snapshot: DocumentSnapshot, assetUrl?: (src: string) => string | undefined): Projection {
   const context = resolveReferences(snapshot);
   const targets = new Map(textTargets(snapshot).map(item => [item.block, item.target]));
   const nodes: PMNode[] = [];
-  const addProtected = (block: Block, html = protectedHtml(snapshot, block, context)) => nodes.push(schema.nodes.protectedBlock!.create(html));
+  const addProtected = (block: Block, html = protectedHtml(snapshot, block, context, assetUrl)) => nodes.push(schema.nodes.protectedBlock!.create(html));
   for (const block of snapshot.blocks) {
     if (block.type === 'heading') {
       const target = targets.get(block);
@@ -99,7 +99,7 @@ function blockProjection(snapshot: DocumentSnapshot): Projection {
     for (const child of block.children) {
       const target = child.type === 'paragraph' ? targets.get(child) : undefined;
       if (child.type === 'paragraph' && target) nodes.push(editableParagraph(snapshot, target, child, 'directive', context));
-      else addProtected(child, protectedChildHtml(snapshot, child, context));
+      else addProtected(child, protectedChildHtml(snapshot, child, context, assetUrl));
     }
   }
   if (!nodes.length) nodes.push(schema.nodes.protectedBlock!.create({ html: '<div class="readonly-block">Empty document</div>', label: 'Empty document' }));
@@ -238,8 +238,8 @@ export class DocumentEditor {
   private virtual: VirtualEdit | null = null;
   private unsubscribe: () => void;
 
-  constructor(readonly session: SourceSession, readonly host: HTMLElement, readonly report: (message: string) => void) {
-    this.baseline = blockProjection(session.snapshot);
+  constructor(readonly session: SourceSession, readonly host: HTMLElement, readonly report: (message: string) => void, readonly assetUrl?: (src: string) => string | undefined) {
+    this.baseline = blockProjection(session.snapshot, assetUrl);
     this.view = new EditorView(host, {
       state: EditorState.create({ schema, doc: this.baseline.doc }),
       attributes: { role: 'document', 'aria-label': 'NaruDoc document' },
@@ -348,7 +348,7 @@ export class DocumentEditor {
       try {
         const operation: Operation = { type: 'setInlineText', ...target, path: mapping.path, expected: mapping.value, text: mapping.value.slice(0, from - mapping.from) + text + mapping.value.slice(to - mapping.from) };
         const candidate = planOperation(this.session.snapshot, operation);
-        if (blockProjection(candidate.next).doc.eq(draft)) return this.commitOperations([operation], cursor);
+        if (blockProjection(candidate.next, this.assetUrl).doc.eq(draft)) return this.commitOperations([operation], cursor);
       } catch (error) { failure = error; }
     }
     this.report((failure as Error | undefined)?.message ?? 'Only ordinary text edits inside one inline run are supported.');
@@ -526,7 +526,7 @@ export class DocumentEditor {
 
   private syncFromSession(cursor?: Cursor) {
     if (this.destroyed) return;
-    const projection = blockProjection(this.session.snapshot); this.baseline = projection; this.virtual = null;
+    const projection = blockProjection(this.session.snapshot, this.assetUrl); this.baseline = projection; this.virtual = null;
     this.handles.splice(0, this.handles.length, ...textTargets(this.session.snapshot).map(item => ({ target: item.target, view: this.view })));
     let state = EditorState.create({ schema, doc: projection.doc });
     if (cursor) {
@@ -559,6 +559,6 @@ class ProtectedBlockView {
   stopEvent() { return true; }
 }
 
-export function mountDocumentProjection(host: HTMLElement, session: SourceSession, report: (message: string) => void): DocumentEditor {
-  return new DocumentEditor(session, host, report);
+export function mountDocumentProjection(host: HTMLElement, session: SourceSession, report: (message: string) => void, assetUrl?: (src: string) => string | undefined): DocumentEditor {
+  return new DocumentEditor(session, host, report, assetUrl);
 }

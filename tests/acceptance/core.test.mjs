@@ -5,7 +5,7 @@ import { parseDocument, assertValid, validateDocument, outline, sections, getByI
 import { boundary } from '../../packages/model/dist/index.js';
 
 const fixtureDir = new URL('../fixtures/', import.meta.url);
-for (const file of await readdir(fixtureDir)) {
+for (const file of (await readdir(fixtureDir)).filter(name => name.endsWith('.narudoc'))) {
   test(`fidelity: ${file}`, async () => {
     const bytes = await readFile(new URL(file, fixtureDir)), source = bytes.toString('utf8');
     const doc = parseDocument(source); assertValid(doc);

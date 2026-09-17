@@ -1,4 +1,6 @@
 import { inlineText, NaruError, type Block, type DocumentSnapshot, type Inline, type ReferenceContext } from '@naruforge/narudoc-model';
+/** Maps a validated document-relative asset path to a servable URL; the renderer never reads files. */
+export interface RenderOptions { assetUrl?: (src: string) => string | undefined }
 export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
@@ -6,6 +8,10 @@ export function safeUrl(value: string): boolean {
   if (!value || /[\x00-\x20\x7f\\]/.test(value) || value.startsWith('//')) return false;
   const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(value);
   return !scheme || ['https', 'http', 'mailto'].includes(scheme[1]!.toLowerCase());
+}
+/** Percent-encodes each stored path segment for URLs; never decodes, so % and # stay literal filename characters. */
+export function assetHref(src: string): string {
+  return src.split('/').map(encodeURIComponent).join('/');
 }
 function renderInline(nodes: Inline[], context?: ReferenceContext): string {
   return nodes.map(n => {
@@ -23,7 +29,7 @@ function renderInline(nodes: Inline[], context?: ReferenceContext): string {
     }
   }).join('');
 }
-function renderBlock(block: Block, context?: ReferenceContext): string {
+function renderBlock(block: Block, context?: ReferenceContext, options?: RenderOptions): string {
   if (context && !context.blocks.has(block)) throw new NaruError('NARU_RENDER_CONTEXT', 'Block does not belong to this render context.');
   const render = (nodes: Inline[]) => renderInline(nodes, context);
   switch (block.type) {
@@ -37,19 +43,29 @@ function renderBlock(block: Block, context?: ReferenceContext): string {
       return `<table${block.id === undefined ? '' : ` id="${escapeHtml(block.id)}"`}>${caption}<thead><tr>${block.header.cells.map(c => `<th>${render(c.inline)}</th>`).join('')}</tr></thead><tbody>${block.rows.map(row => `<tr>${row.cells.map(c => `<td>${render(c.inline)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     }
     case 'code': return `<pre><code>${escapeHtml(block.value)}</code></pre>`;
+    case 'figure': {
+      const definition = context?.byBlock.get(block);
+      if (!definition) throw new NaruError('NARU_RENDER_CONTEXT', 'Figures require their snapshot reference context.');
+      const caption = `<figcaption>${escapeHtml(definition.label! + (block.caption ? ': ' + block.caption : ''))}</figcaption>`;
+      const url = options?.assetUrl?.(block.src);
+      const content = url ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(block.alt)}">` : `<span class="missing-asset">Image unavailable: ${escapeHtml(block.src)}</span>`;
+      return `<figure id="${escapeHtml(block.id)}">${content}${caption}</figure>`;
+    }
     case 'list': {
       const tag = block.ordered ? 'ol' : 'ul';
       return `<${tag}${block.ordered ? ` start="${block.start}"` : ''}>${block.items.map(item => `<li>${render(item)}</li>`).join('')}</${tag}>`;
     }
-    case 'directive': return `<aside${block.id === undefined ? '' : ` id="${escapeHtml(block.id)}"`} data-kind="${escapeHtml(block.name)}"><strong>${escapeHtml(block.name)}</strong><dl>${block.attributes.filter(a => a.key !== 'id').map(a => `<dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd>`).join('')}</dl>${block.children.map(b => renderBlock(b, context)).join('')}</aside>`;
+    case 'directive': return `<aside${block.id === undefined ? '' : ` id="${escapeHtml(block.id)}"`} data-kind="${escapeHtml(block.name)}"><strong>${escapeHtml(block.name)}</strong><dl>${block.attributes.filter(a => a.key !== 'id').map(a => `<dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd>`).join('')}</dl>${block.children.map(b => renderBlock(b, context, options)).join('')}</aside>`;
   }
 }
 export { renderBlock as renderBlockHtml };
 /** Pure projection. No filesystem, network, editor, or raw HTML execution. */
-export function renderHtml(doc: DocumentSnapshot, context?: ReferenceContext): string {
+export function renderHtml(doc: DocumentSnapshot, context?: ReferenceContext, options?: RenderOptions): string {
   if (context && context.snapshot !== doc) throw new NaruError('NARU_RENDER_CONTEXT', 'Snapshot does not match render context.');
   const metadata = doc.blocks.find(b => b.type === 'metadata');
   const heading = doc.blocks.find(b => b.type === 'heading');
   const title = metadata?.attributes.find(a => a.key === 'title')?.value ?? (heading ? inlineText(heading.inline, context) : 'NaruDoc');
-  return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${escapeHtml(title)}</title><style>body{max-width:56rem;margin:3rem auto;padding:0 1.5rem;font:18px/1.65 system-ui,sans-serif}pre{overflow:auto;padding:1rem;background:#f2f3f5}aside{border-left:3px solid #64748b;padding:1rem;margin:1rem 0}dt{font-weight:600}dd{margin-left:1rem}a{color:#1457a8}p{white-space:pre-wrap}</style></head><body><main>\n${doc.blocks.map(b => renderBlock(b, context)).filter(Boolean).join('\n')}\n</main></body></html>\n`;
+  const figures = doc.blocks.some(b => b.type === 'figure');
+  const csp = `default-src 'none'; style-src 'unsafe-inline'; ${figures ? "img-src 'self'; " : ''}base-uri 'none'; form-action 'none'`;
+  return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><title>${escapeHtml(title)}</title><style>body{max-width:56rem;margin:3rem auto;padding:0 1.5rem;font:18px/1.65 system-ui,sans-serif}pre{overflow:auto;padding:1rem;background:#f2f3f5}aside{border-left:3px solid #64748b;padding:1rem;margin:1rem 0}dt{font-weight:600}dd{margin-left:1rem}a{color:#1457a8}p{white-space:pre-wrap}figure{margin:1rem 0}figcaption{font-size:.85rem;color:#475569}.missing-asset{display:inline-block;padding:1rem;border:1px dashed #b3413c;color:#8c2f39}</style></head><body><main>\n${doc.blocks.map(b => renderBlock(b, context, options)).filter(Boolean).join('\n')}\n</main></body></html>\n`;
 }

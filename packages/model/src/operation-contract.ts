@@ -27,6 +27,8 @@ export const directiveInputSchema = inputObject({
   attributes: { type: 'object', additionalProperties: string('Generic single-line attribute value; id/reserved keys are rejected by Core.') },
   children: { type: 'array', items: directiveChildSchema, description: 'Authored body blocks; source ranges are parser-owned.' },
 }, ['name', 'id', 'attributes', 'children']);
+const assetPath = string('Document-relative /-separated path to an existing PNG/JPEG/WebP file; the host validates existence and content before saving.');
+const altText = string('Alternative text; pass an explicitly empty string only for decorative images.');
 
 function operation<const S extends InputSchema>(input: S, details: {
   description: string; target: string; effect: string; retry: string; example: InputOf<S>; advanced?: boolean;
@@ -62,6 +64,14 @@ export const operationDefinitions = {
   insertDirective: operation(inputObject({ sectionId: id, ...directiveInputSchema.properties }, ['sectionId', 'name', 'id', 'attributes', 'children']), {
     description: 'Append a generic directive from an authoring object.', target: 'section stable ID', effect: 'Insert one new directive; status remains a generic string.', retry: createRetry,
     example: { sectionId: 'control', name: 'requirement', id: 'REQ-NEW', attributes: { status: 'draft' }, children: [{ type: 'paragraph', text: 'Check the voltage.' }] },
+  }),
+  insertFigure: operation(inputObject({ sectionId: id, id: newId, src: assetPath, alt: altText, caption: string('Optional plain single-line caption.') }, ['sectionId', 'id', 'src', 'alt']), {
+    description: 'Append a figure referencing an existing image next to the document.', target: 'section stable ID', effect: 'Insert one @figure annotation line only; never copies or writes asset files.', retry: createRetry,
+    example: { sectionId: 'control', id: 'fig-control', src: 'assets/control.png', alt: 'Control loop diagram', caption: 'Control layout' },
+  }),
+  setFigureMetadata: operation(inputObject({ id, src: assetPath, alt: altText, caption: string('Optional; empty removes the caption.') }, ['id']), {
+    description: 'Change a figure src, alt or caption while keeping its ID and references.', target: 'figure stable ID', effect: 'Minimal quoted-value patches; asset bytes stay untouched.', retry: requery,
+    example: { id: 'fig-existing', src: 'assets/control.png', alt: 'Existing figure', caption: 'Added caption' },
   }),
   renameId: operation(inputObject({ id, newId }, ['id', 'newId']), { description: 'Rename an ID and its parsed internal references together.', target: 'stable ID', effect: 'Patch definition and actual internal link destinations atomically.', retry: requery, example: { id: 'control', newId: 'control-v2' } }),
   setHeadingTitle: operation(inputObject({ id, title: text }, ['id', 'title']), { description: 'Change a heading title, retaining its ID and spacing.', target: 'section stable ID', effect: 'Minimal title patch.', retry: requery, example: { id: 'control', title: 'Control design' } }),
