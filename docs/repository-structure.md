@@ -33,6 +33,7 @@
 | 저장 직전 revision·lock·오류 | [file-store](../packages/file-store/src/index.ts), [HTTP host](../apps/web/src/index.ts) | [저장 경계](architecture.md#저장과-안전), [CLI revision](cli.md#revision과-dry-run) | [저장 회귀](../tests/acceptance/), [실제 충돌 journey](../tests/browser/web.spec.mjs) |
 | HTML/위험 URL | [renderer](../packages/renderer-html/src/index.ts), [참조 해석](../packages/core/src/references.ts) | [format](format.md), [local security](local-editor.md) | [acceptance](../tests/acceptance/), [browser security](../tests/browser/) |
 | 새 package/의존성·문서/도움말 | [구조 검사](../scripts/verify-architecture.mjs), [문서/연습 검사](../scripts/verify-guide.mjs), [CLI binding](../apps/cli/src/commands.ts) | 이 문서, [architecture](architecture.md) | [의도적 drift mutation](../tests/acceptance/boundaries.test.mjs), [contracts](../tests/acceptance/contracts.test.mjs) |
+| 신규 기능의 범위·우선순위·선행 능력 판단 | 코드 수정 전에 실제 Issue와 [로드맵](roadmap.md) 확인 | [제품 원칙](product.md), [장기 발전 경로](roadmap.md) | 사용자 결과·선행 조건·기존 계약 영향 검토; 구현 시 해당 작업의 테스트 경로로 연결 |
 
 새 기능이 문서 의미·저장 결과에 영향을 주면 Core와 실행 입력 계약부터 추가한다. Flag/HTTP/auth는 host에, 화면 layout/composition은 adapter에 둔다. Generic directive attribute의 문자열 저장과 특정 도메인의 상태 전이/schema 검증은 다르다. 후자가 필요하면 별도 요구와 의미 계약을 먼저 정하며 UI form에 숨겨 넣지 않는다.
 
@@ -52,5 +53,6 @@
 | [ADR](adr/) | 중요한 선택의 배경·대안·이유·결과와 해당 결정의 Status |
 | [프로젝트 기록 규약](project-records.md) | 승인·기록·변경·검토 절차 |
 | GitHub Issue / Project | 승인된 작업 내용 / 실제 진행 상태 |
+| [로드맵](roadmap.md) | 장기 제품 능력·발전 순서·선행 능력·달성 기준. 현재 진행 상태·작업 목록·출시 일정은 제외 |
 
 요약은 원본을 링크하고 세부 계약을 독립적으로 복제하지 않는다. 계약을 변경하면 같은 PR에서 관련 문서·예제·검증을 함께 갱신한다. 제품 비전에 진행 상태표·완료 대장·출시 일정을 넣지 않고 ADR 상태 index도 만들지 않는다. 현재 구조 설명은 구현 사실이며, 제안 단계 ADR이 그 사실을 과거의 승인으로 바꾸지는 않는다.

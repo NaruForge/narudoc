@@ -6,6 +6,8 @@ NaruDoc은 `.narudoc` 파일을 authoritative source로 유지한다. 사람은 
 
 현재 v0.0.3은 제목·섹션·문단·generic directive·제한 pipe table의 headless 편집과 단일 파일 로컬 Visual Editor를 제공한다. 완성형 WYSIWYG는 장기 목표다. 현재 브라우저는 제목/문단의 일반 text run과 구조 생성 form을 지원하며 표·목록·코드는 안전하게 표시·보존한다. Full CommonMark, Word 대체, PDF/DOCX, 실시간 협업과 npm 공개 배포는 제공하지 않는다. [제품 원칙과 목표](docs/product.md)가 방향의 원본이다.
 
+앞으로 발전시킬 제품 능력과 선행 조건은 [장기 로드맵](docs/roadmap.md)에 정리한다. 로드맵은 현재 지원 기능이나 출시 일정이 아니며, 실제 사용 방법은 아래 실습과 [CLI 계약](docs/cli.md), [로컬 편집기 안내](docs/local-editor.md)를 따른다.
+
 ## 설치와 첫 문서
 
 Node.js 22 이상과 package.json에 고정한 pnpm 10.17.1을 준비하고 checkout 루트에서 실행한다.

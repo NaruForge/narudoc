@@ -4,9 +4,11 @@ NaruDoc은 읽을 수 있는 `.narudoc` 원본과 headless 엔진을 함께 발�
 
 ## 착수와 작업 위치
 
-먼저 repository/branch/worktree, `git status --short`와 관련 diff를 확인하고 사용자·다른 Agent의 변경을 보존한다. 실제 GitHub Issue의 최신 범위·완료 조건과 [승인·기록 절차](docs/project-records.md#일상-작업의-읽기-경로)를 확인한다. 후속 사용자 승인은 근거를 남기되 과거 승인 이력을 덮어쓰지 않는다.
+작업 유형에서 코드·계약·테스트로 이동하는 [저장소 구조](docs/repository-structure.md#작업에서-구현과-검증으로)를 사용한다. 링크 문서가 자동으로 context에 로딩됐다고 가정하지 말고 필요한 절을 직접 읽는다.
 
-작업 유형에서 코드·계약·테스트로 이동하는 [저장소 구조](docs/repository-structure.md#작업에서-구현과-검증으로)를 사용한다. 링크 문서가 자동으로 context에 로딩됐다고 가정하지 말고 필요한 절을 직접 읽는다. 제품 방향·새 기능은 [제품 비전](docs/product.md#설계-제안-점검), 모듈 경계는 [아키텍처](docs/architecture.md), source/문법은 [파일 계약](docs/format.md), CLI 입출력은 [CLI 계약](docs/cli.md)이 원본이다. 모든 수정에 전체 문서를 읽을 필요는 없다.
+제품 목적과 원칙은 [제품 비전](docs/product.md), 장기적인 제품 능력·발전 순서·선행 조건은 [로드맵](docs/roadmap.md)이 소유한다. 신규 기능의 범위·우선순위를 판단할 때 해당 부분을 읽되, 일반 버그 수정에 로드맵 전체를 의무적으로 읽지 않는다. 로드맵에 포함된 항목도 실제 Issue와 사용자 승인 없이 구현하지 않는다.
+
+현재 모듈 경계는 [아키텍처](docs/architecture.md), source/문법은 [파일 계약](docs/format.md), CLI 입출력은 [CLI 계약](docs/cli.md)을 따른다. 장기 목표를 현재 지원 기능이나 확정된 구현 방식으로 해석하지 않는다.
 
 ## 구현 경계
 

@@ -38,8 +38,13 @@ GitHub를 선택한 이유는 저장소와 Issues가 이미 존재하고, 설치
 | Personal next action | 사용자가 별도로 사용하는 개인 작업 체계. Issue 링크만 연결하고 repository backlog나 진행 상태를 복제하지 않는다. |
 | Completed implementation history | Git commit과 merged PR 이력. 별도 완료 대장을 만들지 않는다. |
 | Durable decision / ADR status | 해당 `docs/adr/*.md` 문서. |
+| Long-term capability direction | [장기 로드맵](roadmap.md). 제품 능력·발전 순서·선행 능력·달성 기준. |
 
 Milestone, PR 상태, 담당자, 개인 할 일의 완료 여부로 Project `Status`를 대신하지 않는다. Issue 종료는 작업의 처분을, Git과 merged PR은 실제 변경 이력을 기록한다. Issue·ADR·PR·commit은 링크로 연결하며 본문과 상태를 복제하지 않는다. 이 문서에도 개별 Work Item의 현재 상태를 기록하지 않는다.
+
+로드맵은 제품 능력 사이의 선행 조건과 발전 방향을 설명한다. 개별 Issue의 실행 순서·승인·진행 상태·native Dependency를 대신하지 않는다. 로드맵의 항목을 승인된 Work로 해석하거나 모든 항목을 미리 Issue로 생성하지 않는다.
+
+로드맵은 장기 범위·발전 순서·선행 능력·달성 기준이 바뀔 때 수정하며, 근거는 관련 Issue/PR에 남긴다. 개별 작업의 진행·병합·완료는 로드맵에 복제하지 않는다.
 
 ## Work Item 종류와 내용
 
