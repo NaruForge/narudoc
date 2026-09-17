@@ -24,7 +24,7 @@ function renderInline(nodes: Inline[], context?: ReferenceContext): string {
   }).join('');
 }
 function renderBlock(block: Block, context?: ReferenceContext): string {
-  if (context && !context.snapshot.blocks.some(b => b === block || (b.type === 'directive' && b.children.includes(block as never)))) throw new NaruError('NARU_RENDER_CONTEXT', 'Block does not belong to this render context.');
+  if (context && !context.blocks.has(block)) throw new NaruError('NARU_RENDER_CONTEXT', 'Block does not belong to this render context.');
   const render = (nodes: Inline[]) => renderInline(nodes, context);
   switch (block.type) {
     case 'metadata': return '';

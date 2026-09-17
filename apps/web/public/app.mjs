@@ -37,10 +37,11 @@ function project() {
   documentEditor?.destroy(); documentEditor = undefined; editors = [];
   if (validateDocument(session.snapshot).some(d => d.severity === 'error')) {
     editors = []; $('content').replaceChildren();
+    const context = resolveReferences(session.snapshot);
     for (const block of session.snapshot.blocks) {
       const wrapper = document.createElement('div'); wrapper.className = 'readonly-block';
       if (block.type === 'metadata') { const pre = document.createElement('pre'); pre.textContent = session.source.slice(block.range.start, block.range.end); wrapper.append(pre); }
-      else wrapper.innerHTML = renderBlockHtml(block, resolveReferences(session.snapshot));
+      else wrapper.innerHTML = renderBlockHtml(block, context);
       // Document IDs belong to the source, not the application's control namespace.
       wrapper.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
       $('content').append(wrapper);

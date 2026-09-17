@@ -12,7 +12,8 @@ function groups(block: Block): Inline[][] {
 export function resolveReferences(doc: DocumentSnapshot): ReferenceContext {
   const byNode = new Map<Inline, ReferenceUse>(), byBlock = new Map<Block, import('@naruforge/narudoc-model').ReferenceDefinition>();
   const byId = new Map<string, import('@naruforge/narudoc-model').ReferenceDefinition[]>();
-  const context: ReferenceContext = { snapshot: doc, definitions: [], references: [], diagnostics: [], byNode, byBlock };
+  const blocks = new Set(doc.blocks.flatMap<Block>(block => block.type === 'directive' ? [block, ...block.children] : [block]));
+  const context: ReferenceContext = { snapshot: doc, blocks, definitions: [], references: [], diagnostics: [], byNode, byBlock };
   const seen = new Set<string>(); let number = 0;
   for (const block of doc.blocks) if ('id' in block && block.id !== undefined) {
     if (seen.has(block.id)) context.diagnostics.push({ code: 'NARU_DUPLICATE_ID', message: `Duplicate ID: ${block.id}`, severity: 'error', range: block.range });

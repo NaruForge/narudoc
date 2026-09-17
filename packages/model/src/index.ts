@@ -40,7 +40,7 @@ export interface BatchStep { operationIndex: number; edits: TextEdit[] }
 export interface BatchEditPlan { baseSource: string; steps: BatchStep[]; next: DocumentSnapshot }
 export interface ReferenceDefinition { id: string; block: Block; number?: number; label?: string }
 export interface ReferenceUse { block: Block; node: Extract<Inline, { type: 'link' | 'reference' }>; id: string; target?: ReferenceDefinition; label?: string }
-export interface ReferenceContext { snapshot: DocumentSnapshot; definitions: ReferenceDefinition[]; references: ReferenceUse[]; diagnostics: Diagnostic[]; byNode: ReadonlyMap<Inline, ReferenceUse>; byBlock: ReadonlyMap<Block, ReferenceDefinition> }
+export interface ReferenceContext { snapshot: DocumentSnapshot; blocks: ReadonlySet<Block>; definitions: ReferenceDefinition[]; references: ReferenceUse[]; diagnostics: Diagnostic[]; byNode: ReadonlyMap<Inline, ReferenceUse>; byBlock: ReadonlyMap<Block, ReferenceDefinition> }
 export function inlineText(nodes: Inline[], context?: ReferenceContext): string {
   return nodes.map(n => n.type === 'reference' ? context?.byNode.get(n)?.label ?? `[@${n.targetId}]` : 'value' in n ? n.value : inlineText(n.children, context)).join('');
 }
