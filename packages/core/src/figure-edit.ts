@@ -32,17 +32,21 @@ export function figureMetadataEdits(doc: DocumentSnapshot, op: Extract<Operation
   if (node.type !== 'figure') throw new NaruError('NARU_TARGET', 'Expected a figure ID.');
   if (op.src === undefined && op.alt === undefined && op.caption === undefined) throw new NaruError('NARU_ARGUMENT', 'Provide src, alt or caption.');
   const source = doc.source;
+  // The parser admits any valid JSON string spelling (e.g. escaped slashes or \uXXXX);
+  // compare parsed semantics, not the raw bytes. Equal values stay exact no-ops.
   const quoted = (range: { start: number; end: number }, value: string, label: string): void => {
-    if (source.slice(range.start, range.end) !== JSON.stringify(value)) throw new NaruError('NARU_PATCH', `Missing or inconsistent ${label} source range; reparse the source.`);
+    let parsed: unknown;
+    try { parsed = JSON.parse(source.slice(range.start, range.end)); } catch { /* diagnosed below */ }
+    if (parsed !== value) throw new NaruError('NARU_PATCH', `Missing or inconsistent ${label} source range; reparse the source.`);
   };
   const edits: TextEdit[] = [];
-  if (op.src !== undefined) {
+  if (op.src !== undefined && op.src !== node.src) {
     const problem = assetPathProblem(op.src);
     if (problem) throw new NaruError('NARU_ARGUMENT', problem);
     quoted(node.srcRange, node.src, 'src');
     edits.push(...minimalEdit(source, node.srcRange.start, node.srcRange.end, JSON.stringify(op.src)));
   }
-  if (op.alt !== undefined) {
+  if (op.alt !== undefined && op.alt !== node.alt) {
     altText(op.alt);
     quoted(node.altRange, node.alt, 'alt');
     edits.push(...minimalEdit(source, node.altRange.start, node.altRange.end, JSON.stringify(op.alt)));

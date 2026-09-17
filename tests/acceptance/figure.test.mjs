@@ -77,6 +77,29 @@ test('insertFigure writes one line and setFigureMetadata keeps ID, references an
   assert.equal(one.edits.length, 1);
   assert.equal(one.edits[0].expected, 'c'); assert.equal(one.edits[0].text, 'd');
 });
+test('valid JSON escape spellings stay byte-identical on no-op and patch minimally on change', () => {
+  const escaped = String.raw`# D {#d}
+
+@figure id="f" src="assets\/pixel.png" alt="A" caption="x"
+`;
+  const doc = parseDocument(escaped);
+  assertValid(doc);
+  const figure = doc.blocks[1];
+  assert.equal(figure.type === 'figure' && figure.src, 'assets/pixel.png');
+  // Semantically identical values never rewrite a valid alternative JSON spelling.
+  const noop = planOperation(doc, { type: 'setFigureMetadata', id: 'f', src: 'assets/pixel.png', alt: 'A' });
+  assert.deepEqual(noop.edits, []);
+  assert.equal(noop.next.source, escaped);
+  // A real change replaces only the alt range and keeps every other byte.
+  const changed = planOperation(doc, { type: 'setFigureMetadata', id: 'f', alt: 'B' });
+  assert.equal(changed.next.source, escaped.replace(String.raw`alt="A"`, 'alt="B"'));
+  assert.equal(changed.edits.length, 1);
+  assert.equal(changed.edits[0].expected, 'A');
+  assert.equal(changed.edits[0].text, 'B');
+  // A genuinely inconsistent range still fails closed.
+  const tampered = { ...doc, source: escaped.replace(String.raw`"assets\/pixel.png"`, '"assets/other.png"') };
+  assert.throws(() => planOperation(tampered, { type: 'setFigureMetadata', id: 'f', src: 'assets/new.png' }), { code: 'NARU_PATCH' });
+});
 test('figure and table numbering stay separate and references reuse the common resolver', () => {
   const doc = parseDocument('# D {#d}\n\nSee [@fig-a] and [@tab-a].\n\n@figure id="fig-a" src="a.png" alt="a"\n\n@table id="tab-a"\n| X |\n| --- |\n\n@figure id="fig-b" src="b.png" alt="b" caption="Second"\n');
   assertValid(doc);
