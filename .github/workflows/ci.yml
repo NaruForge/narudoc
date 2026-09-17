@@ -20,16 +20,58 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Select validation
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # Only a small list of non-executable guidance may skip product checks.
+          # Unknown paths, deleted code, missing base and manual runs get full checks.
+          code=true
+          if [[ "$EVENT_NAME" != workflow_dispatch && -n "$BASE_SHA" ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            git diff --check "$BASE_SHA" HEAD
+            git diff --no-renames --name-only -z "$BASE_SHA" HEAD > "$RUNNER_TEMP/narudoc-changed-paths"
+            code=false
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                AGENTS.md|docs/project-records.md|docs/repository-structure.md|docs/product.md|docs/roadmap.md|docs/evidence/*.md|.github/ISSUE_TEMPLATE/*|.github/pull_request_template.md|.agents/blueprints/*) ;;
+                *) code=true; break ;;
+              esac
+            done < "$RUNNER_TEMP/narudoc-changed-paths"
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v4
+        if: steps.scope.outputs.code == 'true'
       - uses: actions/setup-node@v4
+        if: steps.scope.outputs.code == 'true'
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.code != 'true'
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Check guidance without installing dependencies
+        if: steps.scope.outputs.code != 'true'
+        run: node scripts/verify-guide.mjs --links-only
       - run: pnpm install --frozen-lockfile
+        if: steps.scope.outputs.code == 'true'
       - run: pnpm test
-      - run: node scripts/verify-authoring.mjs
+        if: steps.scope.outputs.code == 'true'
+      - run: pnpm test:authoring
+        if: steps.scope.outputs.code == 'true'
+      # Browser interactions run on the primary Windows/Node 22 target.
+      # Manual dispatch keeps the complete OS x Node browser matrix available.
       - run: pnpm exec playwright install --with-deps chromium
+        if: steps.scope.outputs.code == 'true' && (github.event_name == 'workflow_dispatch' || (matrix.os == 'windows-latest' && matrix.node == 22))
       - run: pnpm test:browser
+        if: steps.scope.outputs.code == 'true' && (github.event_name == 'workflow_dispatch' || (matrix.os == 'windows-latest' && matrix.node == 22))
       - run: pnpm exec narudoc --version
+        if: steps.scope.outputs.code == 'true'
       - run: pnpm exec narudoc validate examples/engineering.narudoc
-      - run: git diff --exit-code
+        if: steps.scope.outputs.code == 'true'
+      - run: git diff --check && git diff --exit-code

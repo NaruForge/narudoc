@@ -58,10 +58,24 @@ Help는 파일을 열지 않고 해당 명령의 옵션·예제·실패 복구�
 
 ## 개발과 계약
 
-저장소를 수정하는 사람·Agent는 [AGENTS](AGENTS.md)와 [작업 → 코드·검증 지도](docs/repository-structure.md#작업에서-구현과-검증으로)에서 시작한다. `pnpm test`와 `node scripts/verify-authoring.mjs`로 headless 동작을 검증하고, browser 변경은 `pnpm exec playwright install chromium` 후 `pnpm test:browser`를 실행한다.
+개발 절차는 [AGENTS](AGENTS.md), 코드 위치는 [저장소 지도](docs/repository-structure.md)를 참고한다. 작은 요청은 Issue나 Project 상태 관리 없이 구현하고 커밋 메시지 또는 PR에 결과를 남긴다. 별도 계획서·ADR·독립 Agent 검토는 매 작업의 의무가 아니다.
+
+| 명령 | 언제 사용하는가 |
+| --- | --- |
+| `pnpm check:docs` | 의존성 설치·제품 빌드 없이 로컬 문서 링크·README 연습 문법 확인 |
+| `pnpm build` | 코드 변경 후 필요한 산출물 생성·타입 검사 |
+| `node --test tests/acceptance/session.test.mjs` | 빌드 후 해당 영역만 검사하는 예. 작업에 맞는 파일을 선택 |
+| `pnpm test:unit` | 이미 같은 소스로 빌드했다면 재빌드 없이 전체 acceptance 실행 |
+| `pnpm test` | 빌드 + 전체 acceptance. 공통 계약·저장·의존성·빌드 변경 등에 사용 |
+| `pnpm test:authoring` | 현재 빌드의 실제 CLI 작성 시나리오를 확인할 때 |
+| `pnpm test:browser tests/browser/web.spec.mjs` | 빌드 후 해당 브라우저 spec만 확인하는 예 |
+
+브라우저 최초 준비에는 `pnpm exec playwright install chromium`이 필요하다. 파일을 지정하지 않은 `pnpm test:browser`는 전체 브라우저 회귀를 실행한다. 같은 입력의 빌드·성공한 검증은 재사용하고, 일반 안내 수정에 제품·브라우저·실모델 검증을 요구하지 않는다. 실행 가능한 README 실습·계약·fixture·검증 도구 변경은 단순 문서 변경으로 취급하지 않는다.
+
+CI는 일반 코드 변경에서 기존 Windows/Linux × Node 22/24 acceptance를 유지하고, 브라우저 회귀는 Windows/Node 22에서 한 번 실행한다. Actions의 수동 실행은 전체 브라우저 행렬을 검사한다. 정해진 일반 지침·양식만 바뀌면 각 CI job은 의존성 설치 없이 문서/diff만 검사하며, 알 수 없는 변경과 삭제된 코드는 전체 검사로 처리한다.
 
 - [아키텍처와 책임](docs/architecture.md), [문법·원본 범위·호환성](docs/format.md)
-- [제품 원칙](docs/product.md), [승인·기록·ADR 절차](docs/project-records.md), [ADR 원문](docs/adr/)
+- [제품 원칙](docs/product.md), [개발 기록](docs/project-records.md), [ADR 원문](docs/adr/)
 - [Adapter spike와 검증 한계](docs/visual-editor-spike.md)
 
 제품 버전, CLI envelope schemaVersion, 파일 해석 호환성은 서로 다르다. 0.0.2 directive `body → children`, 0.0.3 table Block, 0.0.4 reference Inline, 0.0.5 figure Block 변경의 소비자는 [이행 안내](docs/format.md)를 확인한다. 파생 snapshot을 저장 원본으로 사용하지 않는다.

@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { workspacePackages } from './verify-architecture.mjs';
 
 const rootDefault = fileURLToPath(new URL('../', import.meta.url));
 const slug = value => value.toLowerCase().replace(/<[^>]*>/g, '').replace(/[^\p{L}\p{N}\p{M}_\-\s]/gu, '').replace(/ /g, '-');
@@ -57,8 +56,6 @@ export async function verifyGuide(root = rootDefault) {
       links++;
     }
   }
-  const map = await readFile(resolve(root, 'docs/repository-structure.md'), 'utf8');
-  for (const pkg of await workspacePackages(root)) if (!map.includes(`](../${pkg.path}/)`)) throw new Error(`Repository map lacks package link ${pkg.path}`);
   const commands = practiceCommands(await readFile(resolve(root, 'README.md'), 'utf8'));
   return { files: files.length, links, commands: commands.length };
 }
@@ -79,6 +76,8 @@ export async function verifyPractice(root = rootDefault) {
   } finally { await rm(cwd, { recursive: true, force: true }); }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  console.log('PASS: guide links/map', await verifyGuide());
-  console.log('PASS: README argv through CLI in isolated directory', await verifyPractice());
+  const args = process.argv.slice(2);
+  if (args.some(arg => arg !== '--links-only')) throw new Error('Usage: node scripts/verify-guide.mjs [--links-only]');
+  console.log('PASS: guide links and practice syntax', await verifyGuide());
+  if (!args.includes('--links-only')) console.log('PASS: README argv through CLI in isolated directory', await verifyPractice());
 }

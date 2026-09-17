@@ -8,7 +8,7 @@ import { verifyArchitecture } from '../../scripts/verify-architecture.mjs';
 import { practiceCommands, verifyGuide, verifyPractice } from '../../scripts/verify-guide.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-test('all workspace packages, recursive source and actual guide links/map pass', async () => {
+test('all workspace packages, recursive source and actual guide links pass', async () => {
   assert.equal((await verifyArchitecture(root)).packages.length, 8);
   assert.ok((await verifyGuide(root)).links > 0);
   const compiler = JSON.parse(await readFile(join(root, 'tsconfig.base.json'), 'utf8'));
@@ -22,7 +22,7 @@ test('README practice executes actual documented argv with independent expected 
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), 'naru-boundary-')); t.after(() => rm(dir, { recursive: true, force: true }));
   // Copy source/contracts only. Never mutate a shared checkout or dist while tests run.
-  for (const path of ['apps', 'packages', 'docs', 'examples', 'tests', 'scripts', '.agents', '.github', 'AGENTS.md', 'README.md', 'package.json', 'pnpm-workspace.yaml']) {
+  for (const path of ['apps', 'packages', 'docs', 'examples', 'tests', 'scripts', '.github', 'AGENTS.md', 'README.md', 'package.json', 'pnpm-workspace.yaml']) {
     await cp(join(root, path), join(dir, path), { recursive: true, filter: src => !/[\\/](?:node_modules|dist)(?:[\\/]|$)/.test(src) });
   }
   return dir;
@@ -63,7 +63,7 @@ test('architecture mutations fail for nested globals, dynamic Node import, deep 
   await writeFile(join(dir, 'packages/unmapped/package.json'), JSON.stringify({ name: '@naruforge/new', version: '0.0.3' }));
   await assert.rejects(verifyArchitecture(dir), /Unmapped workspace/);
 });
-test('broken local links, anchors, missing map coverage and README command drift fail', async t => {
+test('broken local links, anchors and README command drift fail', async t => {
   const dir = await fixture(t), readmeFile = join(dir, 'README.md'), readme = await readFile(readmeFile, 'utf8');
   assert.throws(() => practiceCommands(readme.replace('new practice.narudoc', 'new ../outside.narudoc')), /isolated document/);
   assert.throws(() => practiceCommands(readme.replace('--output practice.html', '--output ../outside.html')), /stay isolated/);
@@ -73,7 +73,7 @@ test('broken local links, anchors, missing map coverage and README command drift
   await writeFile(readmeFile, readme);
   const mapFile = join(dir, 'docs/repository-structure.md'), map = await readFile(mapFile, 'utf8');
   await writeFile(mapFile, map.replace('[packages/model](../packages/model/)', 'model'));
-  await assert.rejects(verifyGuide(dir), /map lacks package link/);
+  await verifyGuide(dir); // Map prose is guidance, not a product contract.
   await writeFile(mapFile, map);
   // Link checks cannot certify commands. Execute a mutated README against real built CLI separately.
   const commandRoot = await mkdtemp(join(tmpdir(), 'naru-guide-drift-')); t.after(() => rm(commandRoot, { recursive: true, force: true }));
