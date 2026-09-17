@@ -15,7 +15,7 @@ import { checkGenerated, verifyContracts } from '../../scripts/verify-contracts.
 
 const cliPath = fileURLToPath(new URL('../../apps/cli/bin/narudoc.mjs', import.meta.url));
 const cli = (args, input) => spawnSync(process.execPath, [cliPath, ...args], { input, encoding: 'utf8' });
-const source = '\uFEFF# Control  {#control}\r\n\r\nA.\r\n\r\n| Parameter | Value |\r\n| --- | --- |\r\n| Voltage | 400 |\r\n\r\n:::requirement\r\nid: REQ-1\r\nstatus: draft\r\n\r\nCheck voltage.\r\n:::\r\n\r\n## Details {#details}\r\n\r\nKeep 한글 😀.\r\n\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n\r\n# Join {#join}\r\n\r\nLeft.\r\n\r\nRight.\r\n';
+const source = '\uFEFF# Control  {#control}\r\n\r\nA.\r\n\r\n| Parameter | Value |\r\n| --- | --- |\r\n| Voltage | 400 |\r\n\r\n:::requirement\r\nid: REQ-1\r\nstatus: draft\r\n\r\nCheck voltage.\r\n:::\r\n\r\n## Details {#details}\r\n\r\nKeep 한글 😀.\r\n\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n\r\n# Join {#join}\r\n\r\nLeft.\r\n\r\nRight.\r\n\r\n# Refs {#ref-section}\r\n\r\nSee [@tab-example].\r\n\r\n@table id="tab-example"\r\n| X |\r\n| --- |\r\n\r\n@table id="tab-other"\r\n| Y |\r\n| --- |\r\n';
 test('prototype names are unknown commands, not internal exceptions', () => {
   for (const command of ['constructor', 'toString', '__proto__']) {
     const result = cli([command, '--json']);
@@ -29,6 +29,9 @@ test('public TypeScript inputs infer required/optional fields and enums from def
 });
 // Authored expectations: none are produced by a serializer/planner under test.
 const expected = {
+  setTableMetadata: source.replace('| Parameter |', '@table id="tab-parameters" caption="Parameters"\r\n| Parameter |'),
+  insertReference: source.replace('A.', 'A.[@tab-example]'),
+  setReferenceTarget: source.replace('See [@tab-example].', 'See [@tab-other].'),
   setInlineText: source.replace('A.', 'A revised.'),
   insertTable: source.replace(':::\r\n\r\n## Details', ':::\r\n\r\n| Parameter | Value |\r\n| --- | --- |\r\n| Voltage | 400 |\r\n\r\n## Details'),
   setTableCell: source.replace('400', '420'),
@@ -77,6 +80,12 @@ test('common invalid corpus keeps failure codes/index and original bytes/mtime a
   const { file, post } = await fixture(t), before = await stat(file);
   const valid = { type: 'setHeadingTitle', id: 'control', title: 'Changed' };
   const corpus = [
+    { type: 'insertTable', sectionId: 'control', caption: 'No ID', headers: ['X'], rows: [] },
+    { type: 'setTableMetadata', sectionId: 'control', tableIndex: 0 },
+    { type: 'setTableMetadata', sectionId: 'control', tableIndex: 0, id: 'control' },
+    { type: 'insertReference', ...operationDefinitions.insertReference.example, targetId: 'control' },
+    { type: 'insertReference', ...operationDefinitions.insertReference.example, expected: 'stale' },
+    { type: 'setReferenceTarget', ...operationDefinitions.setReferenceTarget.example, expectedTargetId: 'stale' },
     { ...operationDefinitions.setTableCell.example, type: 'setTableCell', part: 'footer' },
     { ...valid, title: 2 }, { ...valid, unexpected: true }, { ...valid, id: 'missing' },
     { ...valid, title: '[broken](#missing)' },
@@ -89,7 +98,7 @@ test('common invalid corpus keeps failure codes/index and original bytes/mtime a
     const operations = [valid, bad], result = cli(['batch', file, '--operations', '-', '--revision', revision(source), '--json'], JSON.stringify({ schemaVersion: 1, operations }));
     const batchError = JSON.parse(result.stderr).error;
     assert.equal(batchError.code, error.code); assert.equal(batchError.operationIndex, 1);
-    const response = await post(operations); assert.equal(response.status, 400);
+    const response = await post(operations); assert.equal(response.status, error.code === 'NARU_STALE' ? 409 : 400);
     assert.equal(response.body.code, error.code); assert.equal(response.body.operationIndex, 1);
     assert.deepEqual(response.body.diagnostics, batchError.diagnostics);
     assert.deepEqual(await readFile(file), Buffer.from(source)); assert.equal((await stat(file)).mtimeMs, before.mtimeMs);
@@ -128,7 +137,7 @@ test('all help levels are file-free and capability is bounded; intentional contr
   for (const args of [[], ['table'], ['table', 'set-cell', 'does-not-exist.narudoc']]) {
     const result = cli([...args, '--help']); assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /narudoc/);
   }
-  const list = capabilities(); assert.equal(list.operations.length, 17); assert.ok(!JSON.stringify(list).includes('properties'));
+  const list = capabilities(); assert.equal(list.operations.length, 20); assert.ok(!JSON.stringify(list).includes('properties'));
   for (const type of Object.keys(operationDefinitions)) { readOperation(capabilities(type).example); assert.match(commandHelp((operationBindings[type]?.command ?? 'batch').split(' ')), /Example:/); }
   assert.throws(() => checkBindings(operationDefinitions, { ...operationBindings, fake: { command: 'fake', fields: {} } }), /coverage drift/);
   const wrong = structuredClone(operationBindings); delete wrong.setTableCell.fields.part;

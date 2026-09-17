@@ -1,5 +1,5 @@
 import { boundary, inlineText, NaruError, readOperation, type DocumentSnapshot, type Operation, type TextTarget } from '@naruforge/narudoc-model';
-import { directSectionBody, getSection, getTable, parseDocument, planOperation, planSequence, textTarget, validateDocument } from '@naruforge/narudoc-core';
+import { resolveReferences, directSectionBody, getSection, getTable, parseDocument, planOperation, planSequence, textTarget, validateDocument } from '@naruforge/narudoc-core';
 
 /** Offset within displayed inline text, never a source byte/DOM/ProseMirror position. */
 export interface SelectionPoint { target: TextTarget; offset: number }
@@ -17,10 +17,13 @@ function sameRun(a: Operation, b: Operation): boolean {
 function paragraphs(doc: DocumentSnapshot, id: string) {
   return directSectionBody(doc, id).blocks.filter((block): block is Extract<typeof block, { type: 'paragraph' }> => block.type === 'paragraph');
 }
-function paragraphText(doc: DocumentSnapshot, id: string, index: number): string { return inlineText(paragraphs(doc, id)[index]!.inline); }
-function selectedText(doc: DocumentSnapshot, id: string, from: { index: number; offset: number }, to: { index: number; offset: number }): string {
-  const ps = paragraphs(doc, id), first = paragraphText(doc, id, from.index), last = paragraphText(doc, id, to.index);
-  const middle = ps.slice(from.index + 1, to.index).map(p => inlineText(p.inline)).join('\n');
+function paragraphView(doc: DocumentSnapshot, id: string) {
+  const ps = paragraphs(doc, id), context = resolveReferences(doc);
+  return { paragraphs: ps, text: (index: number) => inlineText(ps[index]!.inline, context) };
+}
+function selectedText(view: ReturnType<typeof paragraphView>, from: { index: number; offset: number }, to: { index: number; offset: number }): string {
+  const first = view.text(from.index), last = view.text(to.index);
+  const middle = view.paragraphs.slice(from.index + 1, to.index).map((_, index) => view.text(from.index + 1 + index)).join('\n');
   return from.index === to.index ? first.slice(from.offset, to.offset) : first.slice(from.offset) + '\n' + (middle ? middle + '\n' : '') + last.slice(0, to.offset);
 }
 function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, operation: Operation): Operation | undefined {
@@ -30,7 +33,7 @@ function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, ope
     case 'setTableCell': {
       const table = getTable(before, operation.sectionId, operation.tableIndex), row = operation.part === 'header' ? table.header : table.rows[operation.row], cell = row?.cells[operation.column];
       if (!cell) return undefined;
-      return { ...operation, text: inlineText(cell.inline) };
+      return { ...operation, text: before.source.slice(cell.contentRange.start, cell.contentRange.end) };
     }
     case 'setDirectiveAttribute': {
       const block = before.blocks.find(candidate => 'id' in candidate && candidate.id === operation.id);
@@ -47,32 +50,33 @@ function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, ope
       return child ? { ...operation, text: before.source.slice(child.range.start, child.range.end) } : undefined;
     }
     case 'splitParagraph': {
-      const left = paragraphText(after, operation.id, operation.index), right = paragraphText(after, operation.id, operation.index + 1);
+      const view = paragraphView(after, operation.id), left = view.text(operation.index), right = view.text(operation.index + 1);
       return { type: 'joinParagraph', id: operation.id, index: operation.index, expected: left + '\n' + right };
     }
-    case 'joinParagraph': return { type: 'splitParagraph', id: operation.id, index: operation.index, offset: paragraphText(before, operation.id, operation.index).length, expected: paragraphText(after, operation.id, operation.index) };
+    case 'joinParagraph': return { type: 'splitParagraph', id: operation.id, index: operation.index, offset: paragraphView(before, operation.id).text(operation.index).length, expected: paragraphView(after, operation.id).text(operation.index) };
     case 'replaceParagraphRange': {
-      const beforeParagraphs = paragraphs(before, operation.id), afterParagraphs = paragraphs(after, operation.id);
-      const insertedCount = afterParagraphs.length - beforeParagraphs.length + operation.to.index - operation.from.index + 1;
+      const beforeView = paragraphView(before, operation.id), afterView = paragraphView(after, operation.id);
+      const insertedCount = afterView.paragraphs.length - beforeView.paragraphs.length + operation.to.index - operation.from.index + 1;
       if (insertedCount < 1) return undefined;
-      const first = paragraphText(before, operation.id, operation.from.index), last = paragraphText(before, operation.id, operation.to.index);
+      const first = beforeView.text(operation.from.index), last = beforeView.text(operation.to.index);
       const prefix = first.slice(0, operation.from.offset), suffix = last.slice(operation.to.offset);
-      const inverseToIndex = operation.from.index + insertedCount - 1, inverseLast = paragraphText(after, operation.id, inverseToIndex);
-      return { type: 'replaceParagraphRange', id: operation.id, from: { index: operation.from.index, offset: prefix.length }, to: { index: inverseToIndex, offset: inverseLast.length - suffix.length }, expected: selectedText(after, operation.id, { index: operation.from.index, offset: prefix.length }, { index: inverseToIndex, offset: inverseLast.length - suffix.length }), text: operation.expected };
+      const inverseToIndex = operation.from.index + insertedCount - 1, inverseLast = afterView.text(inverseToIndex);
+      return { type: 'replaceParagraphRange', id: operation.id, from: { index: operation.from.index, offset: prefix.length }, to: { index: inverseToIndex, offset: inverseLast.length - suffix.length }, expected: selectedText(afterView, { index: operation.from.index, offset: prefix.length }, { index: inverseToIndex, offset: inverseLast.length - suffix.length }), text: operation.expected };
     }
     case 'insertParagraph': {
-      const afterParagraphs = paragraphs(after, operation.id);
+      const view = paragraphView(after, operation.id), afterParagraphs = view.paragraphs;
       if (afterParagraphs.length < 2) return undefined;
       if (operation.index < afterParagraphs.length - 1) {
-        const inserted = paragraphText(after, operation.id, operation.index);
+        const inserted = view.text(operation.index);
         return { type: 'replaceParagraphRange', id: operation.id, from: { index: operation.index, offset: 0 }, to: { index: operation.index + 1, offset: 0 }, expected: inserted + '\n', text: '' };
       }
-      const previous = paragraphText(after, operation.id, operation.index - 1), inserted = paragraphText(after, operation.id, operation.index);
+      const previous = view.text(operation.index - 1), inserted = view.text(operation.index);
       return { type: 'replaceParagraphRange', id: operation.id, from: { index: operation.index - 1, offset: previous.length }, to: { index: operation.index, offset: inserted.length }, expected: '\n' + inserted, text: '' };
     }
     case 'insertSection': return { type: 'removeSection', id: operation.id };
     case 'insertChildSection': return { type: 'removeSection', id: operation.id };
     case 'insertTable':
+    case 'setTableMetadata': case 'insertReference': case 'setReferenceTarget':
     case 'insertDirective':
     case 'removeSection':
     case 'moveSection':
@@ -147,7 +151,7 @@ export class SourceSession {
     this.checkGeneration(generation);
     if (epoch !== this.epoch) throw new NaruError('NARU_STALE', 'Selection belongs to a replaced structure.');
     for (const point of [anchor, head]) {
-      const value = inlineText(textTarget(this.current, point.target).inline);
+      const value = inlineText(textTarget(this.current, point.target).inline, resolveReferences(this.current));
       if (!boundary(value, point.offset)) throw new NaruError('NARU_TARGET', 'Selection offset is out of range or splits Unicode.');
     }
     this.selected = copy({ anchor, head, generation, epoch });

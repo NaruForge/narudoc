@@ -5,7 +5,8 @@ import { readTableInput, tableCellText, tableSource } from './table-input.js';
 import { inlineTextEdits, assertInlineResult } from './inline-edit.js';
 import { assertValid } from './validation.js';
 import { applyTextEdits, minimalEdit } from './patch.js';
-import { internalReferences } from './references.js';
+import { resolveReferences } from './references.js';
+import { referenceEdits, assertReferenceResult, tableMetadataEdits } from './reference-edit.js';
 import { directiveSource, readInsertDirective } from './directive-input.js';
 import { planJoinParagraph, planReplaceParagraphRange, planSplitParagraph } from './paragraph-edit.js';
 
@@ -43,14 +44,19 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
   assertValid(doc);
   const source = doc.source;
   let edits: TextEdit[];
+  let referenceExpected: import('@naruforge/narudoc-model').Inline[] | undefined;
   switch (operation.type) {
     case 'setInlineText': edits = inlineTextEdits(doc, operation); break;
     case 'insertTable': {
-      const input = readTableInput({ headers: operation.headers, rows: operation.rows });
+      const input = readTableInput({ headers: operation.headers, rows: operation.rows, ...(operation.id === undefined ? {} : { id: operation.id }), ...(operation.caption === undefined ? {} : { caption: operation.caption }) });
       const { endIndex: end } = directSectionBody(doc, operation.sectionId);
       const point = doc.blocks[end - 1]!.range.end, next = doc.blocks[end];
       const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
       edits = [{ start: point, end: point, expected: '', text: doc.eol.repeat(2) + tableSource(input, doc.eol) + right }]; break;
+    }
+    case 'setTableMetadata': edits = tableMetadataEdits(doc, operation); break;
+    case 'insertReference': case 'setReferenceTarget': {
+      const result = referenceEdits(doc, operation); edits = result.edits; referenceExpected = result.expected; break;
     }
     case 'setTableCell': {
       const text = tableCellText(operation.text);
@@ -75,14 +81,19 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
       const node = getById(doc, operation.id);
       if (operation.newId === operation.id) { edits = []; break; }
       if (doc.blocks.some(block => 'id' in block && block.id === operation.newId)) throw new NaruError('NARU_ARGUMENT', `ID already exists: ${operation.newId}`);
-      const range = node.type === 'heading' ? node.idRange : node.type === 'directive' ? node.attributes.find(attr => attr.key === 'id')?.valueRange : undefined;
-      if (!range || source.slice(range.start, range.end) !== operation.id) throw new NaruError('NARU_PATCH', 'Missing or inconsistent ID source range; reparse the source.');
+      const range = node.type === 'heading' || node.type === 'table' ? node.idRange : node.type === 'directive' ? node.attributes.find(attr => attr.key === 'id')?.valueRange : undefined;
+      let sourceId: string | undefined;
+      if (range) {
+        sourceId = source.slice(range.start, range.end);
+        if (node.type === 'table') { try { sourceId = JSON.parse('"' + sourceId + '"'); } catch { sourceId = undefined; } }
+      }
+      if (!range || sourceId !== operation.id) throw new NaruError('NARU_PATCH', 'Missing or inconsistent ID source range; reparse the source.');
       edits = minimalEdit(source, range.start, range.end, operation.newId);
-      for (const reference of internalReferences(doc)) {
+      for (const reference of resolveReferences(doc).references) {
         if (reference.id !== operation.id) continue;
-        const urlRange = reference.link.urlRange;
-        if (!urlRange || source.slice(urlRange.start, urlRange.end) !== reference.link.url) throw new NaruError('NARU_PATCH', 'Missing or inconsistent link source range; reparse the source.');
-        edits.push(...minimalEdit(source, urlRange.start, urlRange.end, `#${operation.newId}`));
+        const urlRange = reference.node.type === 'link' ? reference.node.urlRange : reference.node.targetRange;
+        if (!urlRange || source.slice(urlRange.start, urlRange.end) !== (reference.node.type === 'link' ? reference.node.url : reference.node.targetId)) throw new NaruError('NARU_PATCH', 'Missing or inconsistent reference range; reparse source.');
+        edits.push(...minimalEdit(source, urlRange.start, urlRange.end, `${reference.node.type === 'link' ? '#' : ''}${operation.newId}`));
       }
       break;
     }
@@ -198,6 +209,7 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
   const next = parseDocument(applyTextEdits(source, edits));
   assertValid(next);
   if (operation.type === 'setInlineText') assertInlineResult(doc, next, operation);
+  if (referenceExpected && (operation.type === 'insertReference' || operation.type === 'setReferenceTarget')) assertReferenceResult(doc, next, operation, referenceExpected);
   if (operation.type === 'setTableCell') {
     const before = getTable(doc, operation.sectionId, operation.tableIndex), after = getTable(next, operation.sectionId, operation.tableIndex);
     const rows = [before.header, ...before.rows], nextRows = [after.header, ...after.rows];

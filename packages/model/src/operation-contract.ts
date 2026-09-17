@@ -12,6 +12,8 @@ const textTargetFields = { kind: { type: 'string', enum: ['heading', 'paragraph'
 const paragraphPointSchema = inputObject({ index: paragraphIndex, offset: paragraphOffset }, ['index', 'offset']);
 export const textTargetSchema = inputObject(textTargetFields, ['kind', 'id', 'index']);
 export const tableInputSchema = inputObject({
+  id: newId,
+  caption: string('Optional plain single-line caption; requires id.'),
   headers: { type: 'array', minItems: 1, items: text, description: 'Nonempty header cells; Core checks cell grammar.' },
   rows: { type: 'array', items: { type: 'array', items: text }, description: 'Body rows; each must match header width.' },
 }, ['headers', 'rows']);
@@ -44,6 +46,18 @@ export const operationDefinitions = {
   setTableCell: operation(inputObject({ sectionId: id, tableIndex: index('Zero-based direct table index in this step snapshot.'), part: { type: 'string', enum: ['header', 'body'], description: 'Header or body cell; header row must be zero.' }, row: index('Zero-based row within part.'), column: index('Zero-based column.'), text }, ['sectionId', 'tableIndex', 'part', 'row', 'column', 'text']), {
     description: 'Change one table cell while preserving separator and padding.', target: 'section ID + snapshot-relative table/cell coordinates', effect: 'Minimal cell-content patch.', retry: requery,
     example: { sectionId: 'control', tableIndex: 0, part: 'body', row: 0, column: 1, text: '420' },
+  }),
+  setTableMetadata: operation(inputObject({ sectionId: id, tableIndex: index('Zero-based direct table index.'), id: newId, caption: string('Plain single-line caption; empty removes it. Omitted fields are preserved.') }, ['sectionId', 'tableIndex']), {
+    description: 'Annotate a table or edit its caption without rewriting cells.', target: 'section ID + table index', effect: 'Patch annotation only; use renameId to change an existing ID.', retry: requery,
+    example: { sectionId: 'control', tableIndex: 0, id: 'tab-parameters', caption: 'Parameters' },
+  }),
+  insertReference: operation(inputObject({ id, index: paragraphIndex, path: string('Ordinary inline leaf/gap path.'), offset: index('UTF-16 offset inside the ordinary text leaf; zero for a gap.'), expected: string('Exact ordinary text leaf; empty denotes a gap.'), targetId: id }, ['id', 'index', 'path', 'offset', 'expected', 'targetId']), {
+    description: 'Insert a semantic table reference at an ordinary paragraph inline boundary.', target: 'section paragraph + inline path/offset', effect: 'Insert one protected semantic reference.', retry: createRetry,
+    example: { id: 'control', index: 0, path: '0', offset: 2, expected: 'A.', targetId: 'tab-example' },
+  }),
+  setReferenceTarget: operation(inputObject({ id, index: paragraphIndex, path: string('Semantic reference inline path.'), expectedTargetId: id, targetId: id }, ['id', 'index', 'path', 'expectedTargetId', 'targetId']), {
+    description: 'Change one paragraph semantic reference destination.', target: 'section paragraph + reference path', effect: 'Patch only the destination ID.', retry: requery,
+    example: { id: 'ref-section', index: 0, path: '1', expectedTargetId: 'tab-example', targetId: 'tab-other' },
   }),
   insertDirective: operation(inputObject({ sectionId: id, ...directiveInputSchema.properties }, ['sectionId', 'name', 'id', 'attributes', 'children']), {
     description: 'Append a generic directive from an authoring object.', target: 'section stable ID', effect: 'Insert one new directive; status remains a generic string.', retry: createRetry,

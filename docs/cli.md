@@ -1,10 +1,27 @@
-# CLI 사용과 자동화 계약 · v0.0.3
+# CLI 사용과 자동화 계약 · v0.0.4
 
 이 문서는 현재 CLI의 명령과 입출력 계약을 설명한다. 장기 목표는 [제품 비전](product.md), 문법·편집 의미·크기 제한은 [파일 계약](format.md), 저장 보장은 [아키텍처](architecture.md)를 따른다. API와 문법은 실험 단계다.
 
 저장소에서 의존성을 설치하고 빌드한 뒤 `pnpm exec narudoc`으로 실행한다. npm registry 설치는 제공하지 않는다. 명령은 사용자 입력을 묻지 않으며, stdin을 사용하는 경우에는 입력 스트림의 끝까지 기다린다.
 
 ## 명령과 옵션
+
+### 표 ID·캡션·의미 참조
+
+`table insert --from` JSON에는 기존 headers/rows와 선택적 id/caption을 넣는다. Caption은 ID가 있을 때만 허용한다. `table set-metadata --section ID --index N --id TABLE_ID --caption TEXT`는 기존 무주석 표를 annotation한다. 기존 ID를 생략하고 caption만 수정할 수 있으며 빈 caption은 제거한다. ID 변경은 `id rename`을 사용한다.
+
+`table get --id TABLE_ID` 또는 기존 `--section ID --index N`을 사용한다. 두 선택 방식은 혼용하지 않는다. `get/inspect/table get --json`의 추가 `resolved`에는 정의의 id/kind/range 및 표 caption/number/label, 참조의 targetId/range/resolved/label이 있다. 기존 node/source/target 및 비JSON 원문 출력 계약은 유지한다.
+
+`reference insert --id SECTION --index N --path PATH --offset OFFSET --expected TEXT --target-id TABLE`은 section 직접 paragraph의 ordinary leaf/gap에 참조 하나를 넣는다. Offset은 leaf 안의 UTF-16이며 gap은 expected 빈 문자열과 offset 0이다. `reference set-target`은 같은 paragraph/path에서 `--expected-target-id`를 검사하고 `--target-id`로 목적지만 바꾼다. 각 단계마다 source를 다시 조회하며 invalid/stale mapping은 재조회 후 재계획한다. 의미 구문 문자열 조합 없이 batch에서도 같은 operation을 사용한다.
+
+[공개 참조 예제](../examples/table-references.narudoc)를 복사하여 다음 흐름을 실행할 수 있다. 출력 파일은 새 경로여야 한다.
+
+```sh
+pnpm exec narudoc table get practice.narudoc --id tab-parameters --json
+pnpm exec narudoc table set-metadata practice.narudoc --section control --index 0 --caption "Control limits"
+pnpm exec narudoc id rename practice.narudoc --id tab-parameters --new-id tab-voltage
+pnpm exec narudoc render practice.narudoc --to html --output references.html
+```
 
 아래 표의 모든 일반 명령은 `--json`을 받을 수 있다. `FILE`은 하나만 지정하며 `--stdin`과 동시에 지정할 수 없다. 알 수 없는 명령·옵션, 반복 옵션과 명령에 맞지 않는 옵션은 인자 오류다.
 
@@ -15,7 +32,7 @@
 | `inspect FILE` | `--stdin` | Inspect parsed blocks and diagnostics as JSON. |
 | `outline FILE` | `--stdin` | List section IDs, titles and hierarchy. |
 | `get FILE` | `--stdin`, `--id !` | Read an ID target; headings include their whole section. |
-| `table get FILE` | `--stdin`, `--section !`, `--index !` | Read one direct table by section and index. |
+| `table get FILE` | `--stdin`, `--section`, `--index`, `--id` | Read a table by stable ID or by section and index. |
 | `validate FILE` | `--stdin` | Check document syntax, IDs and references. |
 | `render FILE` | `--stdin`, `--to !`, `--output` | Render safe HTML to stdout or a new file. |
 | `new FILE` | `--title`, `--id` | Create a new file without overwriting an existing file. |
@@ -24,6 +41,9 @@
 | `text set FILE` | `--kind !`, `--id !`, `--index !`, `--path !`, `--expected !`, `--text !`, `--revision`, `--dry-run` | Edit one ordinary inline text run without rewriting markup. |
 | `table insert FILE` | `--section !`, `--from !`, `--revision`, `--dry-run` | Append a bounded pipe table to a section direct body. |
 | `table set-cell FILE` | `--section !`, `--index !`, `--part !`, `--row !`, `--column !`, `--text !`, `--revision`, `--dry-run` | Change one table cell while preserving separator and padding. |
+| `table set-metadata FILE` | `--section !`, `--index !`, `--id`, `--caption`, `--revision`, `--dry-run` | Annotate a table or edit its caption without rewriting cells. |
+| `reference insert FILE` | `--id !`, `--index !`, `--path !`, `--offset !`, `--expected !`, `--target-id !`, `--revision`, `--dry-run` | Insert a semantic table reference at an ordinary paragraph inline boundary. |
+| `reference set-target FILE` | `--id !`, `--index !`, `--path !`, `--expected-target-id !`, `--target-id !`, `--revision`, `--dry-run` | Change one paragraph semantic reference destination. |
 | `directive insert FILE` | `--section !`, `--from !`, `--revision`, `--dry-run` | Append a generic directive from an authoring object. |
 | `id rename FILE` | `--id !`, `--new-id !`, `--revision`, `--dry-run` | Rename an ID and its parsed internal references together. |
 | `heading set-title FILE` | `--id !`, `--title !`, `--revision`, `--dry-run` | Change a heading title, retaining its ID and spacing. |

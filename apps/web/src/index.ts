@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { BatchOperationError, NaruError } from '@naruforge/narudoc-model';
-import { assertValid, parseDocument, planSequence, validateDocument } from '@naruforge/narudoc-core';
+import { resolveReferences, assertValid, parseDocument, planSequence, validateDocument } from '@naruforge/narudoc-core';
 import { renderHtml } from '@naruforge/narudoc-renderer-html';
 import { load, save, createFile, decode, assertDocumentSize, revision, parseJsonInput } from '@naruforge/narudoc-file-store';
 
@@ -67,7 +67,7 @@ export async function startEditor(file: string, port = 0) {
         await save(current, next.source);
         json(200, { source: next.source, revision: revision(next.source) });
       } else {
-        const html = renderHtml(next); const output = path + '.html';
+        const html = renderHtml(next, resolveReferences(next)); const output = path + '.html';
         await createFile(output, html);
         json(200, { output, html });
       }

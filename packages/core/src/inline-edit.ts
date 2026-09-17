@@ -43,7 +43,7 @@ function shape(nodes: Inline[]): unknown {
     if (node.type === 'text' && last?.type === 'text') last.value += node.value;
     else normalized.push({ ...node });
   }
-  return normalized.map(n => 'value' in n ? { type: n.type, value: n.value } : { type: n.type, ...('url' in n ? { url: n.url } : {}), children: shape(n.children) });
+  return normalized.map(n => n.type === 'reference' ? { type: n.type, targetId: n.targetId } : 'value' in n ? { type: n.type, value: n.value } : { type: n.type, ...('url' in n ? { url: n.url } : {}), children: shape(n.children) });
 }
 export function assertInlineResult(before: DocumentSnapshot, after: DocumentSnapshot, op: SetInlineTextOperation) {
   const original = textTarget(before, op), result = textTarget(after, op);
