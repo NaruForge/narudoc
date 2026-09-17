@@ -42,7 +42,7 @@ Host/Origin/session token을 검사하고 CORS를 허용하지 않는다. 고정
 
 Windows/Node24/Chromium에서 open→outline→400을420으로 수정→child/paragraph/requirement 추가→status/본문 변경→validation→save→reload→export→CLI inspect/validate/render를 수행했다. GUI 연산을 API로 replay한 source/validation을 비교한다. 독립 기대 문자열 bytes로 BOM/LF/CRLF/CR/혼합 개행/EOF·다른 블록·공백·inline 보존을 확인한다. Invalid draft/Reload 취소/실제 lock/실제 과대 파일/두 탭 및 CLI 충돌/안전 렌더를 검증한다. 권한 오류 UI는 EACCES 응답을 모의한 테스트이며 실제 OS ACL 변경 검증과 다르다.
 
-한글·보조 Unicode 입력과 synthetic composition을 테스트했다. 실제 OS 한글 IME 수동 검증은 수행하지 못했으며, 자동 입력을 수동 IME 검증으로 주장하지 않는다. Firefox/WebKit/mobile/접근성 전수 검증 미실행. 키보드는 기본 native controls와 adapter를 사용한다. Browser automation도 사람이 직접 수행한 manual test와 구분한다. Screenshot은 실제 실행 화면이며 fidelity의 증거를 대체하지 않는다.
+한글·보조 Unicode 입력과 synthetic composition을 테스트했다. 실제 OS 한글 IME 수동 검증은 수행하지 못했으며, 자동 입력을 수동 IME 검증으로 주장하지 않는다. 키보드는 기본 native controls와 adapter를 사용한다. Browser automation도 사람이 직접 수행한 manual test와 구분한다. Screenshot은 실제 실행 화면이며 fidelity의 증거를 대체하지 않는다.
 
 - [열기 화면](evidence/27-open.png)
 - [편집 화면](evidence/27-edit.png)
