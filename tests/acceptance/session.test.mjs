@@ -94,3 +94,15 @@ test('batch indices refer to each preceding result, independently of external di
   assert.equal(atTwo.next.source, '\uFEFF# Control  {#control}\r\n\r\nX.\r\n\r\nA.\r\n\r\nB changed.\r\n');
   assert.throws(() => planBatch(parseDocument(source), { schemaVersion: 1, operations: [insert, text(1, 'B.', 'Wrong.')] }), e => e.code === 'NARU_STALE' && e.operationIndex === 1);
 });
+
+test('save acknowledgement rebases semantic journal without discarding document undo/redo', () => {
+  const session = new SourceSession(source, { revision: 'disk-r1', historyLimit: 20 });
+  session.apply(text(0, 'A.', 'A changed.'));
+  const saved = session.source;
+  session.acknowledgeSave(saved, 'disk-r2');
+  assert.equal(session.baseSource, saved); assert.equal(session.diskRevision, 'disk-r2'); assert.equal(session.operations.length, 0); assert.equal(session.canUndo, true);
+  assert.equal(session.undoGesture(), true); assert.equal(session.source, source);
+  assert.equal(planSequence(parseDocument(saved), session.operations).next.source, source);
+  assert.equal(session.redoGesture(), true); assert.equal(session.source, saved);
+  assert.equal(planSequence(parseDocument(saved), session.operations).next.source, saved);
+});

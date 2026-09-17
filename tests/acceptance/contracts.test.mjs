@@ -15,7 +15,7 @@ import { checkGenerated, verifyContracts } from '../../scripts/verify-contracts.
 
 const cliPath = fileURLToPath(new URL('../../apps/cli/bin/narudoc.mjs', import.meta.url));
 const cli = (args, input) => spawnSync(process.execPath, [cliPath, ...args], { input, encoding: 'utf8' });
-const source = '\uFEFF# Control  {#control}\r\n\r\nA.\r\n\r\n| Parameter | Value |\r\n| --- | --- |\r\n| Voltage | 400 |\r\n\r\n:::requirement\r\nid: REQ-1\r\nstatus: draft\r\n\r\nCheck voltage.\r\n:::\r\n\r\n## Details {#details}\r\n\r\nKeep 한글 😀.\r\n\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n';
+const source = '\uFEFF# Control  {#control}\r\n\r\nA.\r\n\r\n| Parameter | Value |\r\n| --- | --- |\r\n| Voltage | 400 |\r\n\r\n:::requirement\r\nid: REQ-1\r\nstatus: draft\r\n\r\nCheck voltage.\r\n:::\r\n\r\n## Details {#details}\r\n\r\nKeep 한글 😀.\r\n\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n\r\n# Join {#join}\r\n\r\nLeft.\r\n\r\nRight.\r\n';
 test('prototype names are unknown commands, not internal exceptions', () => {
   for (const command of ['constructor', 'toString', '__proto__']) {
     const result = cli([command, '--json']);
@@ -38,9 +38,12 @@ const expected = {
   insertSection: source.replace('# Second', '# Design {#design}\r\n\r\n# Second'),
   insertChildSection: source.replace('Keep 한글 😀.', 'Keep 한글 😀.\r\n\r\n## Design {#design}'),
   removeSection: source.replace('## Details {#details}\r\n\r\nKeep 한글 😀.\r\n\r\n', ''),
-  moveSection: source.replace('# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n', '# Third {#third}\r\n\r\nThird.\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n'),
+  moveSection: source.replace('# Second {#second}\r\n\r\nSecond.\r\n\r\n# Third {#third}\r\n\r\nThird.\r\n\r\n# Join', '# Third {#third}\r\n\r\nThird.\r\n\r\n# Second {#second}\r\n\r\nSecond.\r\n\r\n# Join'),
   replaceParagraph: source.replace('A.', 'A revised.'),
   insertParagraph: source.replace('A.', 'New paragraph.\r\n\r\nA.'),
+  splitParagraph: source.replace('A.\r\n\r\n| Parameter', 'A\r\n\r\n.\r\n\r\n| Parameter'),
+  joinParagraph: source.replace('Left.\r\n\r\nRight.', 'Left.Right.'),
+  replaceParagraphRange: source.replace('A.', 'A revised.'),
   replaceDirectiveParagraph: source.replace('Check voltage.', 'Check revised voltage.'),
   setDirectiveAttribute: source.replace('status: draft', 'status: verified'),
 };
@@ -125,7 +128,7 @@ test('all help levels are file-free and capability is bounded; intentional contr
   for (const args of [[], ['table'], ['table', 'set-cell', 'does-not-exist.narudoc']]) {
     const result = cli([...args, '--help']); assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /narudoc/);
   }
-  const list = capabilities(); assert.equal(list.operations.length, 14); assert.ok(!JSON.stringify(list).includes('properties'));
+  const list = capabilities(); assert.equal(list.operations.length, 17); assert.ok(!JSON.stringify(list).includes('properties'));
   for (const type of Object.keys(operationDefinitions)) { readOperation(capabilities(type).example); assert.match(commandHelp((operationBindings[type]?.command ?? 'batch').split(' ')), /Example:/); }
   assert.throws(() => checkBindings(operationDefinitions, { ...operationBindings, fake: { command: 'fake', fields: {} } }), /coverage drift/);
   const wrong = structuredClone(operationBindings); delete wrong.setTableCell.fields.part;

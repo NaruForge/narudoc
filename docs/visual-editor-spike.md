@@ -2,6 +2,8 @@
 
 설치와 `pnpm build` 후 `pnpm spike`를 실행하고 `http://127.0.0.1:4173`을 연다. 공개 가상 [fixture](../examples/visual-fidelity.narudoc)를 메모리에 읽는다. 파일을 저장하는 서버는 없으며 정적 harness asset만 제공한다. 테스트는 `pnpm test:browser`이고 Chromium 최초 설치는 `pnpm exec playwright install chromium`이다.
 
+이 문서는 기존 per-block spike harness의 검증 범위를 기록한다. 실제 파일을 여는 현재 단일 문서 편집기는 [로컬 편집기 안내](local-editor.md)의 document projection과 Core 문단 범위 연산을 사용한다. 따라서 아래 spike의 “지원하지 않음” 표시는 spike harness의 범위이며 현재 파일 편집기 계약을 거꾸로 제한하지 않는다.
+
 ## 경계와 지원 범위
 
 SourceSession의 source/engine snapshot이 원본이다. PM 문서, DOM과 selection은 projection이다. 각 편집 가능한 제목/문단에는 해당 generation의 target/path/PM offset sidecar가 있다. Adapter는 NaruDoc 문법을 스캔하지 않고 parser의 text range를 사용한다. 실제 text transaction으로 Core operation을 계획하고 재파싱 결과의 projection과 draft까지 대조한다. Source 전체를 editor에서 export하는 경로가 없다.

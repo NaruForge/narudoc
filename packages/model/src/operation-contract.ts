@@ -7,7 +7,9 @@ const id = string('Existing public stable ID; re-query after rename.');
 const newId = string('New document-unique ID; does not rename an existing object.');
 const text = string('Authored text; Core validates its document context.');
 const paragraphIndex = index('Zero-based direct paragraph index in this step snapshot; lists/code/tables do not count. Earlier insertions shift it.');
+const paragraphOffset = index('UTF-16 offset in the displayed direct paragraph text; must not split a surrogate pair.');
 const textTargetFields = { kind: { type: 'string', enum: ['heading', 'paragraph', 'directiveParagraph'], description: 'Text container kind; heading index is zero.' }, id, index: paragraphIndex } as const;
+const paragraphPointSchema = inputObject({ index: paragraphIndex, offset: paragraphOffset }, ['index', 'offset']);
 export const textTargetSchema = inputObject(textTargetFields, ['kind', 'id', 'index']);
 export const tableInputSchema = inputObject({
   headers: { type: 'array', minItems: 1, items: text, description: 'Nonempty header cells; Core checks cell grammar.' },
@@ -55,6 +57,18 @@ export const operationDefinitions = {
   moveSection: operation(inputObject({ id, after: id }, ['id', 'after']), { description: 'Move a section after a sibling without serializing its contents.', target: 'two sibling stable IDs', effect: 'Move source slices; preserve internal bytes.', retry: requery, example: { id: 'second', after: 'third' } }),
   replaceParagraph: operation(inputObject(paragraphFields, ['id', 'index', 'text']), { description: 'Replace one direct section paragraph.', target: 'section ID + snapshot-relative paragraph index', effect: 'Minimal paragraph patch; exact source no-op preserves mixed EOL.', retry: requery, example: { id: 'control', index: 0, text: 'A revised.' } }),
   insertParagraph: operation(inputObject(paragraphFields, ['id', 'index', 'text']), { description: 'Insert a paragraph before index, or append at paragraph count.', target: 'section ID + snapshot-relative insertion index', effect: 'Insert source; later paragraph indices shift.', retry: createRetry, example: { id: 'control', index: 0, text: 'New paragraph.' } }),
+  splitParagraph: operation(inputObject({ id, index: paragraphIndex, offset: paragraphOffset, expected: string('Exact displayed text of the paragraph in this snapshot.') }, ['id', 'index', 'offset', 'expected']), {
+    description: 'Split one direct paragraph at a displayed-text offset.', target: 'section ID + paragraph index + UTF-16 displayed-text offset', effect: 'Create two adjacent paragraphs while preserving supported marks and unrelated source.', retry: requery, advanced: true,
+    example: { id: 'control', index: 0, offset: 1, expected: 'A.' },
+  }),
+  joinParagraph: operation(inputObject({ id, index: paragraphIndex, expected: string('Exact displayed text of the two adjacent paragraphs joined with a newline.') }, ['id', 'index', 'expected']), {
+    description: 'Join one direct paragraph with its adjacent following paragraph.', target: 'section ID + first paragraph index of an adjacent pair', effect: 'Remove the paragraph boundary without crossing protected blocks.', retry: requery, advanced: true,
+    example: { id: 'join', index: 0, expected: 'Left.\nRight.' },
+  }),
+  replaceParagraphRange: operation(inputObject({ id, from: paragraphPointSchema, to: paragraphPointSchema, expected: string('Exact selected displayed text; paragraphs are separated by LF.'), text: string('Plain replacement text; LF/CRLF/CR creates paragraph boundaries and markup-like input is rejected.') }, ['id', 'from', 'to', 'expected', 'text']), {
+    description: 'Replace a direct-paragraph selection, including plain multiline paste.', target: 'one section ID + snapshot-relative start/end paragraph points', effect: 'Atomic minimal source patch; only adjacent direct paragraphs in the same section may be crossed; markup-like replacement is rejected.', retry: requery, advanced: true,
+    example: { id: 'control', from: { index: 0, offset: 0 }, to: { index: 0, offset: 2 }, expected: 'A.', text: 'A revised.' },
+  }),
   replaceDirectiveParagraph: operation(inputObject(paragraphFields, ['id', 'index', 'text']), { description: 'Replace a paragraph inside a generic directive.', target: 'directive ID + snapshot-relative paragraph index', effect: 'Minimal body patch; header and sibling blocks remain unchanged.', retry: requery, example: { id: 'REQ-1', index: 0, text: 'Check revised voltage.' } }),
   setDirectiveAttribute: operation(inputObject({ id, key: string('Generic attribute key; use renameId for id.'), value: string('Trimmed single-line value, including empty.') }, ['id', 'key', 'value']), { description: 'Set a generic directive attribute.', target: 'directive stable ID', effect: 'Patch/add one attribute; no requirement-specific validation.', retry: requery, example: { id: 'REQ-1', key: 'status', value: 'verified' } }),
 } as const;
