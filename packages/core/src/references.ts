@@ -20,7 +20,8 @@ export function resolveReferences(doc: DocumentSnapshot): ReferenceContext {
     seen.add(block.id);
     context.definitions.push({ id: block.id, block, ...(block.type === 'table' ? { number: ++number, label: `Table ${number}` } : {}) });
     const definition = context.definitions.at(-1)!; byBlock.set(block, definition);
-    byId.set(block.id, [...(byId.get(block.id) ?? []), definition]);
+    const definitions = byId.get(block.id);
+    if (definitions) definitions.push(definition); else byId.set(block.id, [definition]);
   }
   function visit(block: Block, nodes: Inline[]) {
     for (const node of nodes) {

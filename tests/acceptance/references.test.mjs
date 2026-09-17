@@ -12,6 +12,17 @@ import { fileURLToPath } from 'node:url';
 import { revision } from '../../packages/file-store/dist/index.js';
 
 const table = '| Parameter | Value |\n| --- | --- |\n| Voltage | 400 |';
+test('duplicate-heavy invalid snapshots keep every diagnostic and never resolve ambiguous references', () => {
+  const count = 10000;
+  const doc = parseDocument(Array(count).fill('# H {#same}').join('\n\n') + '\n\n[@same] [literal](#same)');
+  const context = resolveReferences(doc);
+  assert.equal(context.definitions.length, count);
+  assert.equal(context.diagnostics.filter(d => d.code === 'NARU_DUPLICATE_ID').length, count - 1);
+  assert.equal(context.diagnostics.filter(d => d.code === 'NARU_REFERENCE').length, 2);
+  assert.equal(context.references.length, 2);
+  assert.ok(context.references.every(r => r.target === undefined && r.label === undefined));
+  assert.ok(renderHtml(doc, context).includes('<span class="unresolved-reference">[@same]</span>'));
+});
 test('table annotation is one object with exact ranges and derived reference labels', () => {
   for (const eol of ['\n', '\r\n', '\r']) for (const bom of ['', '\ufeff']) {
     const source = (bom + '# 한글😀 {#control}\n\nSee [@tab-id] and [literal](#tab-id).\n\n@table caption="Control parameters" id="tab-id"\n\n' + table).replaceAll('\n', eol);
