@@ -1,4 +1,4 @@
-import { ID_PATTERN, NaruError, validKey, wellFormed, type DocumentSnapshot, type EditPlan, type Operation, type TextEdit } from '@naruforge/narudoc-model';
+import { ID_PATTERN, NaruError, readOperation, validKey, wellFormed, type DocumentSnapshot, type EditPlan, type Operation, type TextEdit } from '@naruforge/narudoc-model';
 import { parseDocument } from '@naruforge/narudoc-parser';
 import { getById, getSection, getTable } from './query.js';
 import { readTableInput, tableCellText, tableSource } from './table-input.js';
@@ -37,7 +37,8 @@ function paragraphPadding(gap: string, eol: string, beforeGap: boolean): string 
   while (((beforeGap ? padding + gap : gap + padding).match(/\r\n|\r|\n/g)?.length ?? 0) < 2) padding += eol;
   return padding;
 }
-export function planOperation(doc: DocumentSnapshot, operation: Operation): EditPlan {
+export function planOperation(doc: DocumentSnapshot, request: Operation): EditPlan {
+  const operation = readOperation(request);
   assertValid(doc);
   const source = doc.source;
   let edits: TextEdit[];
@@ -160,6 +161,8 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
         if (block.type === 'paragraph') direct.push(block);
       }
       if (!Number.isInteger(operation.index) || operation.index < 0 || !direct[operation.index]) throw new NaruError('NARU_TARGET', 'Paragraph index is out of range.');
+      const target = direct[operation.index]!;
+      if (operation.text === source.slice(target.range.start, target.range.end)) { edits = []; break; }
       const replacement = operation.text.replace(/\r\n|\r|\n/g, doc.eol);
       const standalone = parseDocument(replacement), standaloneBlock = standalone.blocks[0];
       if (standalone.diagnostics.length || standalone.blocks.length !== 1 || standaloneBlock?.type !== 'paragraph' || standaloneBlock.range.start !== 0 || standaloneBlock.range.end !== replacement.length) throw new NaruError('NARU_ARGUMENT', 'Replacement must be exactly one paragraph.');
@@ -167,7 +170,6 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
       const parsed = parseDocument(prefix + replacement), block = parsed.blocks[1];
       if (parsed.diagnostics.some(d => d.severity === 'error')) throw new NaruError('NARU_ARGUMENT', 'Invalid paragraph syntax.', parsed.diagnostics);
       if (parsed.blocks.length !== 2 || block?.type !== 'paragraph' || block.range.start !== prefix.length || block.range.end !== prefix.length + replacement.length) throw new NaruError('NARU_ARGUMENT', 'Replacement must be exactly one paragraph without surrounding blank lines.');
-      const target = direct[operation.index]!;
       edits = minimalEdit(source, target.range.start, target.range.end, replacement); break;
     }
     case 'replaceDirectiveParagraph': {
@@ -201,7 +203,7 @@ export function planOperation(doc: DocumentSnapshot, operation: Operation): Edit
       const attr = node.attributes.find(a => a.key === operation.key);
       edits = attr ? minimalEdit(source, attr.valueRange.start, attr.valueRange.end, operation.value) : [{ start: node.headerEnd, end: node.headerEnd, expected: '', text: `${operation.key}: ${operation.value}${doc.eol}` }]; break;
     }
-    default: throw new NaruError('NARU_ARGUMENT', 'Unknown operation.');
+    default: { const exhaustive: never = operation; throw new NaruError('NARU_ARGUMENT', `Unknown operation: ${exhaustive}`); }
   }
   const next = parseDocument(applyTextEdits(source, edits));
   assertValid(next);

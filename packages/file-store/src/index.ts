@@ -1,3 +1,4 @@
+export { parseJsonInput } from './json.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, open, readFile, rename, unlink, link } from 'node:fs/promises';
 import { dirname, basename, join, parse, resolve, sep } from 'node:path';

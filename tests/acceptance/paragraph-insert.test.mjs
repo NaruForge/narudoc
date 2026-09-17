@@ -72,7 +72,7 @@ test('insertion preserves whitespace-only trailing lines and repeated insertions
 test('invalid targets, positions, structural input and references fail without mutation', () => {
   const source = '# Root {#root}\n\n:::note\nid: D\n\nBody\n:::\n\n## Child {#child}\n\nChild';
   const doc = parseDocument(source);
-  for (const index of [-1, 0.5, 1, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => planOperation(doc, op('New', index)), e => e.code === 'NARU_TARGET');
+  for (const index of [-1, 0.5, 1, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => planOperation(doc, op('New', index)), e => e.code === (index === 1 ? 'NARU_TARGET' : 'NARU_ARGUMENT'));
   for (const id of ['missing', 'D']) assert.throws(() => planOperation(doc, op('New', 0, id)), e => e.code === 'NARU_TARGET');
   for (const text of ['', ' ', '\nNew', 'New\n', 'One\n\nTwo', '# Heading', 'One\n## Heading', '- list', '~~~\ncode\n~~~', ':::x\n:::', ':::', '---\na: b\n---', '\uFEFFText', '\ud800', '\0']) {
     assert.throws(() => planOperation(doc, op(text)), e => e.code === 'NARU_ARGUMENT', JSON.stringify(text));

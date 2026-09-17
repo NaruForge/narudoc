@@ -49,7 +49,7 @@ HTML은 텍스트·속성을 escape하고 위험 URL을 막는다. raw HTML·코
 
 ## 파서 선택
 
-새 directive 생성은 parsed model과 분리된 authoring DTO를 `core/directive-input.ts`에서 검사하고 새 객체만 직렬화한다. 각 child를 directive 문맥에서 기존 parser로 확인한 뒤 섹션 직접 본문의 마지막 블록 끝에 삽입 patch를 만든다. 기존 문서 전체를 직렬화하지 않는다. 코드 fence 길이는 본문과 충돌하지 않도록 정하며 최종 문서의 참조 검증과 CLI 저장은 기존 경로를 사용한다. CLI는 JSON 문법·중복 key를 검사하고 Core가 field/type·의미 검증을 소유한다. 신규 문법/범용 serialization engine/schemaVersion 도입이 아닌 기존 계약 확장이므로 새 ADR을 추가하지 않는다.
+새 directive 생성은 parsed model과 분리된 authoring DTO를 `model`의 공통 입력 정의와 `core/directive-input.ts`의 의미 검사로 확인하고 새 객체만 직렬화한다. 각 child를 directive 문맥에서 기존 parser로 확인한 뒤 섹션 직접 본문의 마지막 블록 끝에 삽입 patch를 만든다. 기존 문서 전체를 직렬화하지 않는다. 코드 fence 길이는 본문과 충돌하지 않도록 정하며 최종 문서의 참조 검증과 CLI 저장은 기존 경로를 사용한다. CLI는 JSON 문법·중복 key를 검사하고 Core가 field/type·의미 검증을 소유한다. 신규 문법/범용 serialization engine/schemaVersion 도입이 아닌 기존 계약 확장이므로 새 ADR을 추가하지 않는다.
 
 Directive의 본문은 `Paragraph | List | Code` 자식만 가진다. Top-level과 본문은 같은 원문 line table에서 문단·목록·fence scanner를 공유하므로 자식 범위도 전체 문서 UTF-16 위치다. 본문의 heading·metadata는 문단 텍스트이며 재귀 directive는 허용하지 않는다. 코드 scanner가 fence 끝까지 소비한 뒤 directive delimiter를 검사한다. `DocumentSnapshot.blocks`는 최상위만 보유한다.
 
@@ -64,3 +64,7 @@ v0.0.3은 docs/format.md의 좁은 NaruDoc 문법만 구현하는 순수 TypeScr
 표는 parser의 별도 bounded row scanner에서 escape/code를 구분하고 절대 셀 contentRange를 계산한다. Core는 DTO를 기존 parser로 확인하고 기존 section 삽입/최소 patch/순차 batch 경로를 사용한다. 참조 validation과 rename은 공통 순회에서 셀 inline을 처리하며 renderer는 재파싱하지 않는다. 모델/호환성 결정은 [Proposed ADR 0007](adr/0007-bounded-pipe-tables.md), 상세 문법은 [파일 계약](format.md)을 따른다.
 
 [단일 파일 로컬 편집기](local-editor.md)는 browser draft/유효 snapshot/저장 revision을 분리하고, 인증된 의미 연산을 서버에서 Core로 재계획한 뒤 공용 save를 한 번 호출한다. 엔진에는 HTTP·DOM을 넣지 않는다. 저장 경계와 보안 선택은 [Proposed ADR 0009](adr/0009-local-editor-save-boundary.md)를 참고한다.
+
+## 실행 입력 계약
+
+의미 입력의 원본은 model의 [operation-contract.ts](../packages/model/src/operation-contract.ts)다. TypeScript 타입과 runtime shape 검사는 같은 정의를 사용한다. Core는 문서 문맥의 의미 검증을, CLI binding은 flag/출력/파일 입력을, 웹은 HTTP 인증·요청 한도를 소유한다. 공통 Node JSON reader는 file-store에 있다. 공통 순차 planning은 host limit과 분리하며 전체 요청 실패 index를 유지한다. [ADR 0010](adr/0010-executable-operation-contract.md)은 대안·호환성·유지 비용을 기록한 Proposed 문서다.

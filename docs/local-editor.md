@@ -45,3 +45,5 @@ Windows/Node24/Chromium에서 open→outline→400을420으로 수정→child/pa
 최종 PR head의 전체 테스트·CI·독립 reviewer 실행 결과는 Issue/PR에 기록한다.
 
 추가 도구 탐색: 문서화한 `pnpm narudoc edit FILE --no-open --port 4187`을 실제 실행하고 playwright-cli의 Windows HeadlessChrome152에서 heading 클릭→End→문자 입력→Save→Reload를 수행했다. 저장 source의 heading spacing과 다른 블록 보존, CLI validate를 확인했다. 기본 OS browser 자동 launch와 실제 OS IME 조작은 미실행이다.
+
+웹 입력의 duplicate key 거부 및 전체 요청 operationIndex/diagnostics는 [공통 입력 계약](cli.md#기능-발견과-입력-원본)을 따른다. 저장 전에 전체 sequence를 성공해야 하며 중간 결과를 저장하지 않는다.

@@ -1,71 +1,14 @@
 import { startEditor, openBrowser } from '@naruforge/narudoc-web';
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
-import { BatchOperationError, NaruError, type Operation, type TextEdit } from '@naruforge/narudoc-model';
-import { assertValid, createDocument, getById, getSection, getTable, outline, parseDocument, planBatch, planOperation, readDirectiveInput, readTableInput, validateDocument } from '@naruforge/narudoc-core';
+import { BatchOperationError, NaruError, type TextEdit } from '@naruforge/narudoc-model';
+import { assertValid, createDocument, getById, getSection, getTable, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
 import { renderHtml } from '@naruforge/narudoc-renderer-html';
 import { assertDocumentSize, createFile, load, readStdin, revision, save } from './io.js';
 import { parseJsonInput } from './json.js';
 
-const HELP = `NaruDoc — headless structured documents
+import { commands, parseOptions, bindOperation, capabilities, commandHelp } from './commands.js';
 
-Local visual editor:
-  narudoc edit FILE [--no-open] [--port N]
-
-Read:
-  narudoc table get FILE --section ID --index N [--json]
-  narudoc inspect FILE [--json]
-  narudoc outline FILE [--json]
-  narudoc get FILE --id ID [--json]
-  narudoc validate FILE [--json]
-  narudoc render FILE --to html [--output FILE] [--json]
-  Read commands accept '-' or --stdin. HTML defaults to stdout.
-
-Write:
-  narudoc text set FILE --kind heading|paragraph|directiveParagraph --id ID --index N --path N.N --expected TEXT --text TEXT
-  narudoc table insert FILE --section ID --from INPUT.json
-  narudoc table set-cell FILE --section ID --index N --part header|body --row N --column N --text TEXT
-  narudoc new FILE [--title TITLE] [--id ID]
-  narudoc heading set-title FILE --id ID --title TITLE
-  narudoc section insert FILE --after ID --id NEW_ID --title TITLE
-  narudoc section insert-child FILE --parent ID --id NEW_ID --title TITLE
-  narudoc section remove FILE --id ID
-  narudoc section move FILE --id ID --after ID
-  narudoc paragraph replace FILE --id SECTION --index 0 --text TEXT
-  narudoc paragraph insert FILE --id SECTION --index 0 --text TEXT
-  narudoc directive set FILE --id ID --key KEY --value VALUE
-  narudoc directive insert FILE --section ID --from INPUT.json
-  narudoc directive replace-paragraph FILE --id ID --index 0 --text TEXT
-  narudoc id rename FILE --id OLD --new-id NEW
-  narudoc batch FILE --operations PLAN.json --revision SHA256
-  Batch plans may use --operations - for stdin; revision is required for batch.
-  Existing-document writes accept --dry-run, --json, --revision SHA256.
-  New/output files never overwrite existing files.
-
-Exit: 0 success; 1 internal; 2 arguments/target; 3 document; 4 conflict; 5 I/O.
-Offsets: UTF-16 code units, half-open [start,end). No telemetry or remote service. edit runs an authenticated loopback server.
-`;
-const commands: Record<string, string[]> = {
-  edit: ['no-open', 'port'],
-  'text set': ['kind', 'id', 'index', 'path', 'expected', 'text', 'dry-run', 'revision'],
-  'table get': ['stdin', 'section', 'index'],
-  'table insert': ['section', 'from', 'dry-run', 'revision'],
-  'table set-cell': ['section', 'index', 'part', 'row', 'column', 'text', 'dry-run', 'revision'],
-  inspect: ['stdin'], outline: ['stdin'], get: ['stdin', 'id'], validate: ['stdin'],
-  render: ['stdin', 'to', 'output'], new: ['title', 'id'],
-  batch: ['operations', 'revision', 'dry-run'],
-  'id rename': ['id', 'new-id', 'revision', 'dry-run'],
-  'heading set-title': ['id', 'title', 'dry-run', 'revision'],
-  'section insert': ['after', 'id', 'title', 'dry-run', 'revision'],
-  'section insert-child': ['parent', 'id', 'title', 'dry-run', 'revision'],
-  'section remove': ['id', 'dry-run', 'revision'],
-  'section move': ['id', 'after', 'dry-run', 'revision'],
-  'paragraph replace': ['id', 'index', 'text', 'dry-run', 'revision'],
-  'paragraph insert': ['id', 'index', 'text', 'dry-run', 'revision'],
-  'directive set': ['id', 'key', 'value', 'dry-run', 'revision'],
-  'directive insert': ['section', 'from', 'dry-run', 'revision'],
-  'directive replace-paragraph': ['id', 'index', 'text', 'dry-run', 'revision'],
-};
 function exitCode(error: NaruError): number {
   if (['NARU_ARGUMENT', 'NARU_TARGET'].includes(error.code)) return 2;
   if (['NARU_INVALID_DOCUMENT', 'NARU_ENCODING'].includes(error.code)) return 3;
@@ -81,27 +24,13 @@ export async function main(args: string[]): Promise<number> {
   const json = args.includes('--json');
   const emit = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
   try {
-    const options = {
-      'no-open': { type: 'boolean' }, port: { type: 'string' },
-      json: { type: 'boolean' }, help: { type: 'boolean' }, version: { type: 'boolean' },
-      stdin: { type: 'boolean' }, 'dry-run': { type: 'boolean' },
-      id: { type: 'string' }, title: { type: 'string' }, after: { type: 'string' },
-      index: { type: 'string' }, text: { type: 'string' }, key: { type: 'string' },
-      value: { type: 'string' }, revision: { type: 'string' }, to: { type: 'string' }, output: { type: 'string' },
-      operations: { type: 'string' },
-      section: { type: 'string' }, from: { type: 'string' },
-      parent: { type: 'string' },
-      part: { type: 'string' }, row: { type: 'string' }, column: { type: 'string' },
-      kind: { type: 'string' }, path: { type: 'string' }, expected: { type: 'string' },
-      'new-id': { type: 'string' },
-    } as const;
-    const { values, positionals, tokens } = parseArgs({ args, options, allowPositionals: true, strict: true, tokens: true });
+    const { values, positionals, tokens } = parseArgs({ args, options: parseOptions, allowPositionals: true, strict: true, tokens: true });
     const seen = new Set<string>();
     for (const token of tokens) if (token.kind === 'option') {
       if (seen.has(token.name)) throw new NaruError('NARU_ARGUMENT', `Repeated option: --${token.name}`);
       seen.add(token.name);
     }
-    if (values.help || !args.length) { process.stdout.write(HELP); return 0; }
+    if (values.help || !args.length) { process.stdout.write(commandHelp(positionals)); return 0; }
     if (values.version) {
       const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
       if (json) emit({ version: pkg.version }); else process.stdout.write(`${pkg.version}\n`);
@@ -109,10 +38,14 @@ export async function main(args: string[]): Promise<number> {
     }
     const positions = [...positionals];
     let command = positions.shift() ?? '';
-    if (['heading', 'section', 'paragraph', 'directive', 'id', 'table', 'text'].includes(command)) command += ' ' + (positions.shift() ?? '');
+    if (Object.keys(commands).some(name => name.startsWith(command + ' '))) command += ' ' + (positions.shift() ?? '');
     const allowed = commands[command];
     if (!allowed) throw new NaruError('NARU_ARGUMENT', 'Unknown command; run narudoc --help.');
-    for (const key of Object.keys(values)) if (!['json', ...allowed].includes(key)) throw new NaruError('NARU_ARGUMENT', `--${key} is not valid for ${command}.`);
+    for (const key of Object.keys(values)) if (!['json', ...Object.keys(allowed.options)].includes(key)) throw new NaruError('NARU_ARGUMENT', `--${key} is not valid for ${command}.`);
+    if (command === 'capabilities') {
+      if (positions.length) throw new NaruError('NARU_ARGUMENT', 'capabilities does not read a file.');
+      emit(capabilities(typeof values.operation === 'string' ? values.operation : undefined)); return 0;
+    }
     if (positions.length > 1 || (values.stdin && positions.length)) throw new NaruError('NARU_ARGUMENT', 'Supply exactly one file or --stdin.');
     const file = values.stdin ? '-' : positions[0];
     if (!file) throw new NaruError('NARU_ARGUMENT', 'A file is required.');
@@ -142,7 +75,7 @@ export async function main(args: string[]): Promise<number> {
       if (!/^[0-9a-f]{64}$/.test(need('revision'))) throw new NaruError('NARU_ARGUMENT', '--revision must be a lowercase SHA-256 for batch.');
     }
     if (command === 'new') {
-      const doc = createDocument(values.title, values.id);
+      const doc = createDocument(typeof values.title === 'string' ? values.title : undefined, typeof values.id === 'string' ? values.id : undefined);
       assertDocumentSize(doc.source);
       await createFile(file, doc.source);
       if (json) emit({ schemaVersion: 1, file, revision: revision(doc.source) }); else process.stdout.write(`Created ${file}\n`);
@@ -197,51 +130,13 @@ export async function main(args: string[]): Promise<number> {
         if (need('to') !== 'html') throw new NaruError('NARU_ARGUMENT', 'Only --to html is supported.');
         assertValid(doc); const html = renderHtml(doc);
         if (values.output) {
-          await createFile(values.output, html);
+          await createFile(need('output'), html);
           if (json) emit({ ...envelope, output: values.output }); else process.stdout.write(`Rendered ${values.output}\n`);
         } else if (json) emit({ ...envelope, html }); else process.stdout.write(html);
         return 0;
       }
     }
-    let operation: Operation;
-    switch (command) {
-      case 'text set': {
-        const kind = need('kind');
-        if (!['heading', 'paragraph', 'directiveParagraph'].includes(kind)) throw new NaruError('NARU_ARGUMENT', 'Unknown text target kind.');
-        operation = { type: 'setInlineText', kind: kind as 'heading' | 'paragraph' | 'directiveParagraph', id: need('id'), index: integer('index'), path: need('path'), expected: need('expected'), text: need('text') }; break;
-      }
-      case 'table insert': {
-        const input = need('from');
-        const text = input === '-' ? await readStdin() : (await load(input)).source;
-        operation = { type: 'insertTable', sectionId: need('section'), ...readTableInput(parseJsonInput(text)) }; break;
-      }
-      case 'table set-cell': {
-        const part = need('part');
-        if (part !== 'header' && part !== 'body') throw new NaruError('NARU_ARGUMENT', '--part must be header or body.');
-        operation = { type: 'setTableCell', sectionId: need('section'), tableIndex: integer('index'), part, row: integer('row'), column: integer('column'), text: need('text') }; break;
-      }
-      case 'directive insert': {
-        const sectionId = need('section'), input = need('from');
-        const text = input === '-' ? await readStdin() : (await load(input)).source;
-        operation = { type: 'insertDirective', sectionId, ...readDirectiveInput(parseJsonInput(text)) }; break;
-      }
-      case 'id rename': operation = { type: 'renameId', id: need('id'), newId: need('new-id') }; break;
-      case 'heading set-title': operation = { type: 'setHeadingTitle', id: need('id'), title: need('title') }; break;
-      case 'section insert': operation = { type: 'insertSection', id: need('id'), after: need('after'), title: need('title') }; break;
-      case 'section insert-child': operation = { type: 'insertChildSection', parent: need('parent'), id: need('id'), title: need('title') }; break;
-      case 'section remove': operation = { type: 'removeSection', id: need('id') }; break;
-      case 'section move': operation = { type: 'moveSection', id: need('id'), after: need('after') }; break;
-      case 'paragraph replace':
-      case 'paragraph insert':
-      case 'directive replace-paragraph': {
-        const index = need('index');
-        if (!/^\d+$/.test(index)) throw new NaruError('NARU_ARGUMENT', '--index must be a non-negative integer.');
-        const type = command === 'paragraph insert' ? 'insertParagraph' : command === 'paragraph replace' ? 'replaceParagraph' : 'replaceDirectiveParagraph';
-        operation = { type, id: need('id'), index: Number(index), text: need('text') }; break;
-      }
-      case 'directive set': operation = { type: 'setDirectiveAttribute', id: need('id'), key: need('key'), value: need('value') }; break;
-      default: throw new NaruError('NARU_ARGUMENT', 'Unknown operation.');
-    }
+    const operation = await bindOperation(command, values, async input => parseJsonInput(input === '-' ? await readStdin() : (await load(input)).source));
     const plan = planOperation(doc, operation);
     assertDocumentSize(plan.next.source);
     if (!values['dry-run']) await save(loaded!, plan.next.source);

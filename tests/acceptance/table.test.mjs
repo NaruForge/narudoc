@@ -84,7 +84,8 @@ test('strict DTO/cell coordinates, invalid syntax and batch insert then edit', (
   assert.equal(inlineText(getTable(batch.next, 'parameters', 0).rows[0].cells[1].inline), '420');
   for (const bad of [null, {}, { ...input, extra: true }, { headers: [], rows: [] }, { headers: ['A'], rows: [['x', 'y']] }, { headers: [1], rows: [] }]) assert.throws(() => readTableInput(bad), e => e.code === 'NARU_ARGUMENT');
   for (const text of ['a|b', 'x\ny', ' x', 'x ', '\ud800', '\0']) assert.throws(() => planOperation(batch.next, set(text)), e => e.code === 'NARU_ARGUMENT');
-  for (const extra of [{ tableIndex: 5 }, { row: 5 }, { column: -1 }, { column: 1.5 }, { sectionId: 'missing' }]) assert.throws(() => planOperation(batch.next, set('x', extra)), e => e.code === 'NARU_TARGET');
+  for (const extra of [{ tableIndex: 5 }, { row: 5 }, { sectionId: 'missing' }]) assert.throws(() => planOperation(batch.next, set('x', extra)), e => e.code === 'NARU_TARGET');
+  for (const extra of [{ column: -1 }, { column: 1.5 }]) assert.throws(() => planOperation(batch.next, set('x', extra)), e => e.code === 'NARU_ARGUMENT');
   for (const extra of [{ part: 'other' }, { row: -1 }, { part: 'header', row: 1 }]) assert.throws(() => planOperation(batch.next, set('x', extra)), e => e.code === 'NARU_ARGUMENT');
   for (const operation of [{ ...insert, extra: 1 }, { ...set(), row: '0' }, { ...set(), extra: 1 }]) assert.throws(() => planBatch(batch.next, { schemaVersion: 1, operations: [operation] }), e => e.code === 'NARU_ARGUMENT' && e.operationIndex === 0);
   assert.throws(() => planBatch(doc, { schemaVersion: 1, operations: [insert, set(), set('bad', { row: 99 })] }), e => e.operationIndex === 2);

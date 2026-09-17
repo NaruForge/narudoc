@@ -1,4 +1,4 @@
-import { NaruError, wellFormed, type TableInput } from '@naruforge/narudoc-model';
+import { NaruError, wellFormed, readInput, tableInputSchema, type TableInput } from '@naruforge/narudoc-model';
 import { parseDocument } from '@naruforge/narudoc-parser';
 
 export function tableCellText(value: unknown): string {
@@ -11,12 +11,10 @@ export function tableCellText(value: unknown): string {
   return value;
 }
 export function readTableInput(value: unknown): TableInput {
-  if (typeof value !== 'object' || value === null || Array.isArray(value) || Object.keys(value).length !== 2 || !Object.hasOwn(value, 'headers') || !Object.hasOwn(value, 'rows')) throw new NaruError('NARU_ARGUMENT', 'Expected exactly headers and rows.');
-  const input = value as Record<string, unknown>;
-  if (!Array.isArray(input.headers) || input.headers.length < 1 || !Array.isArray(input.rows)) throw new NaruError('NARU_ARGUMENT', 'Expected nonempty headers and an array of rows.');
+  const input = readInput(tableInputSchema, value);
   const headers = input.headers.map(tableCellText);
   const rows = input.rows.map(row => {
-    if (!Array.isArray(row) || row.length !== headers.length) throw new NaruError('NARU_ARGUMENT', 'Every row must match header width.');
+    if (row.length !== headers.length) throw new NaruError('NARU_ARGUMENT', 'Every row must match header width.');
     return row.map(tableCellText);
   });
   return { headers, rows };
