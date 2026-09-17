@@ -1,4 +1,4 @@
-# NaruDoc 0.0.3 파일 문법
+# NaruDoc 0.0.4 파일 문법
 
 ## 범위
 
@@ -97,6 +97,20 @@ ID 변경은 `renameId`로 정의와 같은 문서 내부 참조를 함께 수�
 `setTableCell`은 `sectionId`, 직접 `tableIndex`, `part: header|body`, `row`, `column`, `text`를 받는다. Index/좌표는 0-based, header row는 0이다. 셀 contentRange 안의 최소 patch만 적용하고 padding·separator·다른 셀은 유지한다. 같은 내용은 no-op이다. 기존 revision/lock/크기/batch 저장 규칙을 적용하며 원문 offset 입력은 제공하지 않는다. 참조 validation/rename은 실제 셀 링크를 한 번 순회하고 code의 가짜 링크는 무시한다. Renderer는 모델에서 안전한 table HTML을 만든다.
 
 **0.0.2 → 0.0.3:** Block union/inspect JSON에 table이 추가된다. 이전 버전에서 literal paragraph였던 위 문법은 이제 table이다. Section/directive 문단 index는 여전히 직접 paragraph만 세지만, 예전 표 모양 paragraph가 빠져 같은 파일의 숫자 index는 달라질 수 있다. 소비자는 table 분기를 추가하고 원문을 재파싱·조회한 뒤 편집한다. 자동 파일 변환은 없고 CLI envelope schemaVersion은 1을 유지한다. 근거는 [Proposed ADR 0007](adr/0007-bounded-pipe-tables.md)이다.
+
+## 표 annotation과 의미 참조 · 0.0.4
+
+섹션 직접 본문에서 `@table id="tab-parameters" caption="Control parameters"` 한 줄을 pipe table 앞에 둔다. 사이에는 space/tab만 있는 빈 줄을 최대 한 줄 허용한다. Annotation과 표는 하나의 Table이며 기존 무주석 표도 같은 tableIndex에 포함된다. Code/directive 내부 annotation 모양은 기존 literal 해석을 유지하고 첫 heading 전 annotation은 오류다. `@table` 다음 공백 또는 줄 끝이 시작자 경계다.
+
+속성은 space/tab으로 구분한 `key="JSON string"`이며 `id`는 필수, `caption`은 선택이다. 순서는 자유이고 중복/알 수 없는 key, 잘못된 ID, 표 없는 annotation, 연속 annotation, 두 줄 이상 빈 간격은 오류다. Caption은 제어문자 없는 한 줄 Unicode 평문이며 Markdown/참조를 해석하지 않는다. Quote/backslash는 JSON escape로 표현한다. Table의 `annotationRange`, `idRange`(quote 제외), `captionRange`(quote 포함), `captionAttributeRange`(앞 공백 포함)는 전체 source UTF-16 범위다. Table.range는 annotation부터 마지막 행까지이고 행/셀 범위는 변하지 않는다.
+
+`[@tab-parameters]`는 표 ID를 가리키는 의미 참조다. `reference` Inline은 `targetId`, `targetRange`, `range`를 가진다. 닫히지 않은 참조는 `malformed`로 표시하여 validation에서 진단한다. 본문/heading/목록/표 셀/directive 본문의 공통 inline 문법이다. 일반 `[label](url)`이 우선하므로 `[@id](url)`은 기존 링크다. Escape된 `\[@id]`, code, 링크 label, caption/속성 안에서는 의미 참조를 만들지 않는다. 잘못된 구문, 미정의/모호한 ID, 표가 아닌 대상은 위치를 가진 오류다.
+
+ID는 heading/directive/table 전체에서 유일하다. ID 있는 표만 문서 등장 순서로 1부터 번호를 가지며 caption 유무는 번호에 영향을 주지 않는다. 참조 표시는 `Table N`, 표 caption은 `Table N: Caption`(caption 없으면 `Table N`)이다. 일반 내부 링크는 원래 label을 유지한다. 번호는 source에 쓰지 않고 `resolveReferences(snapshot)`에서 계산한다. `inlineText(nodes, context)`는 같은 snapshot의 표시 label을 사용하고 context가 없으면 새 참조를 `[@ID]`로 반환한다. 편집 표시 offset은 해당 snapshot context를 사용한다.
+
+`insertTable`의 선택적 id/caption으로 생성하고 `setTableMetadata`로 기존 표를 annotation하거나 caption을 편집한다. 생략 필드는 유지, 빈 caption은 제거, 기존 ID 변경은 `renameId`만 허용한다. `insertReference`/`setReferenceTarget`은 section 직접 paragraph의 inline path에서 작성/대상을 변경한다. 삽입은 ordinary text leaf의 UTF-16 offset과 expected를 사용하며 gap은 expected 빈 문자열/offset 0이다. Strong/emphasis 내부는 지원하고 보호 inline 내부는 거부한다. 전체 validation과 의도한 inline shape를 확인한다.
+
+0.0.3 → 0.0.4는 Inline union과 새 예약 구문 해석의 호환성 변경이다. 기존 literal annotation/참조는 새 의미가 될 수 있으므로 literal은 시작자를 escape하거나 code로 표현한다. 파일 자동 migration은 없다. 소비자는 원문을 재파싱하고 reference 분기를 추가한다. CLI envelope와 batch schemaVersion은 1이다. 근거는 [Proposed ADR 0012](adr/0012-table-semantic-references.md)다.
 
 ## 일반 text 위치와 편집
 

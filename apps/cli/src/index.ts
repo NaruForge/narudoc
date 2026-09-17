@@ -2,7 +2,7 @@ import { startEditor, openBrowser } from '@naruforge/narudoc-web';
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { BatchOperationError, NaruError, type TextEdit } from '@naruforge/narudoc-model';
-import { assertValid, createDocument, getById, getSection, getTable, targetMetadata, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
+import { resolveReferences, referenceMetadata, assertValid, createDocument, getById, getSection, getTable, targetMetadata, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
 import { renderHtml } from '@naruforge/narudoc-renderer-html';
 import { assertDocumentSize, createFile, load, readStdin, revision, save } from './io.js';
 import { parseJsonInput } from './json.js';
@@ -88,9 +88,11 @@ export async function main(args: string[]): Promise<number> {
     if (values.revision && values.revision !== rev) throw new NaruError('NARU_STALE', 'Requested revision does not match the current file.');
     switch (command) {
       case 'table get': {
-        const node = getTable(doc, need('section'), integer('index'));
+        if ((values.id !== undefined && (values.section !== undefined || values.index !== undefined)) || (values.id === undefined && (values.section === undefined || values.index === undefined))) throw new NaruError('NARU_ARGUMENT', 'Use --id or both --section and --index.');
+        const node = values.id !== undefined ? getById(doc, need('id')) : getTable(doc, need('section'), integer('index'));
+        if (node.type !== 'table') throw new NaruError('NARU_TARGET', 'Expected a table ID.');
         const text = source.slice(node.range.start, node.range.end);
-        if (json) emit({ ...envelope, node, source: text, target: { sectionId: need('section'), tableIndex: integer('index'), scope: 'current-step-snapshot' } }); else process.stdout.write(text);
+        if (json) emit({ ...envelope, node, source: text, resolved: referenceMetadata(doc), target: values.id !== undefined ? { id: need('id'), scope: 'current-step-snapshot' } : { sectionId: need('section'), tableIndex: integer('index'), scope: 'current-step-snapshot' } }); else process.stdout.write(text);
         return 0;
       }
       case 'batch': {
@@ -106,7 +108,7 @@ export async function main(args: string[]): Promise<number> {
         else process.stdout.write(changed ? `Updated ${file}\n` : 'No changes.\n');
         return 0;
       }
-      case 'inspect': emit({ ...envelope, sourceLength: source.length, blocks: doc.blocks, diagnostics: validateDocument(doc) }); return 0;
+      case 'inspect': emit({ ...envelope, sourceLength: source.length, blocks: doc.blocks, resolved: referenceMetadata(doc), diagnostics: validateDocument(doc) }); return 0;
       case 'outline':
         if (json) emit({ ...envelope, sections: outline(doc) });
         else process.stdout.write(outline(doc).map(s => `${'  '.repeat(s.level - 1)}${s.title}${s.id ? ` {#${s.id}}` : ''}\n`).join(''));
@@ -115,7 +117,7 @@ export async function main(args: string[]): Promise<number> {
         const node = getById(doc, need('id'));
         const range = node.type === 'heading' ? getSection(doc, need('id')) : node.range;
         const text = source.slice(range.start, range.end);
-        if (json) emit({ ...envelope, node, source: text, targets: targetMetadata(doc, need('id')) }); else process.stdout.write(text);
+        if (json) emit({ ...envelope, node, source: text, targets: targetMetadata(doc, need('id')), resolved: referenceMetadata(doc) }); else process.stdout.write(text);
         return 0;
       }
       case 'validate': {
@@ -128,7 +130,7 @@ export async function main(args: string[]): Promise<number> {
       }
       case 'render': {
         if (need('to') !== 'html') throw new NaruError('NARU_ARGUMENT', 'Only --to html is supported.');
-        assertValid(doc); const html = renderHtml(doc);
+        assertValid(doc); const html = renderHtml(doc, resolveReferences(doc));
         if (values.output) {
           await createFile(need('output'), html);
           if (json) emit({ ...envelope, output: values.output }); else process.stdout.write(`Rendered ${values.output}\n`);

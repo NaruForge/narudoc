@@ -1,8 +1,8 @@
 import { Schema, type Mark, type Node as PMNode } from 'prosemirror-model';
 import { EditorState, TextSelection, type Transaction } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
-import { boundary, inlineText, NaruError, type Block, type DocumentSnapshot, type Inline, type Operation, type TextTarget } from '@naruforge/narudoc-model';
-import { planOperation, textTarget, textTargets } from '@naruforge/narudoc-core';
+import { boundary, inlineText, NaruError, type Block, type DocumentSnapshot, type Inline, type Operation, type TextTarget, type ReferenceContext } from '@naruforge/narudoc-model';
+import { resolveReferences, planOperation, textTarget, textTargets } from '@naruforge/narudoc-core';
 import { renderBlockHtml } from '@naruforge/narudoc-renderer-html';
 import { SourceSession } from './session.js';
 
@@ -23,13 +23,13 @@ const schema = new Schema({
       toDOM: node => ['p', { role: 'textbox', 'aria-label': node.attrs.label, 'data-target': node.attrs.target, class: node.attrs.container === 'directive' ? 'directive-paragraph' : '' }, 0],
     },
     protectedBlock: {
-      group: 'block', atom: true, selectable: false, attrs: { html: { default: '' }, label: { default: '' } },
+      group: 'block', atom: true, selectable: false, attrs: { html: { default: '' }, label: { default: '' }, target: { default: '' } },
       toDOM: node => ['div', { class: 'readonly-block', 'aria-label': node.attrs.label }, node.attrs.label],
     },
     protectedInline: {
-      inline: true, group: 'inline', atom: true, selectable: false, attrs: { label: {}, kind: {} },
+      inline: true, group: 'inline', atom: true, selectable: false, attrs: { label: {}, kind: {}, reference: { default: '' } },
       leafText: node => String(node.attrs.label ?? ''),
-      toDOM: node => ['span', { class: 'protected-inline', contenteditable: 'false', title: 'Protected ' + node.attrs.kind }, node.attrs.label],
+      toDOM: node => ['span', { class: 'protected-inline', contenteditable: 'false', title: 'Protected ' + node.attrs.kind, ...(node.attrs.reference ? { role: 'link', tabindex: '0', 'data-reference': node.attrs.reference } : {}) }, node.attrs.label],
     },
     text: { group: 'inline' },
   },
@@ -49,47 +49,48 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]!));
 }
 
-function protectedHtml(snapshot: DocumentSnapshot, block: Block): { html: string; label: string } {
+function protectedHtml(snapshot: DocumentSnapshot, block: Block, context = resolveReferences(snapshot)): { html: string; label: string; target?: string } {
   if (block.type === 'metadata') return { html: `<pre>${escapeHtml(snapshot.source.slice(block.range.start, block.range.end))}</pre>`, label: 'Read-only metadata' };
-  return { html: renderBlockHtml(block), label: `Read-only ${block.type}` };
+  return { html: renderBlockHtml(block, context), label: `Read-only ${block.type}`, target: block.type === 'table' ? block.id ?? '' : '' };
 }
 
-function protectedChildHtml(snapshot: DocumentSnapshot, block: Block): { html: string; label: string } {
-  return protectedHtml(snapshot, block);
+function protectedChildHtml(snapshot: DocumentSnapshot, block: Block, context: ReferenceContext): { html: string; label: string; target?: string } {
+  return protectedHtml(snapshot, block, context);
 }
 
-function inlineNodes(snapshot: DocumentSnapshot, nodes: Inline[], prefix = '', marks: Mark[] = []): PMNode[] {
+function inlineNodes(snapshot: DocumentSnapshot, nodes: Inline[], prefix = '', marks: Mark[] = [], context = resolveReferences(snapshot)): PMNode[] {
   return nodes.flatMap((node, index): PMNode[] => {
     const path = prefix + index;
-    if (node.type === 'strong' || node.type === 'emphasis') return inlineNodes(snapshot, node.children, path + '.', [...marks, schema.marks[node.type]!.create()]);
+    if (node.type === 'strong' || node.type === 'emphasis') return inlineNodes(snapshot, node.children, path + '.', [...marks, schema.marks[node.type]!.create()], context);
     if (node.type === 'text' && node.range && snapshot.source.slice(node.range.start, node.range.end) === node.value && !/[\r\n]/.test(node.value)) {
       return node.value ? [schema.text(node.value, marks)] : [];
     }
-    return [schema.nodes.protectedInline!.create({ label: inlineText([node]), kind: node.type }, null, marks)];
+    return [schema.nodes.protectedInline!.create({ label: inlineText([node], context), kind: node.type, reference: node.type === 'reference' ? node.targetId : '' }, null, marks)];
   });
 }
 
-function editableHeading(snapshot: DocumentSnapshot, target: TextTarget, block: Extract<Block, { type: 'heading' }>): PMNode {
-  return schema.nodes.heading!.create({ level: block.level, target: targetKey(target), label: `${target.kind} ${target.id} ${target.index}` }, inlineNodes(snapshot, block.inline));
+function editableHeading(snapshot: DocumentSnapshot, target: TextTarget, block: Extract<Block, { type: 'heading' }>, context: ReferenceContext): PMNode {
+  return schema.nodes.heading!.create({ level: block.level, target: targetKey(target), label: `${target.kind} ${target.id} ${target.index}` }, inlineNodes(snapshot, block.inline, '', [], context));
 }
 
-function editableParagraph(snapshot: DocumentSnapshot, target: TextTarget, block: Extract<Block, { type: 'paragraph' }>, container = 'section'): PMNode {
-  return schema.nodes.paragraph!.create({ target: targetKey(target), label: `${target.kind} ${target.id} ${target.index}`, container }, inlineNodes(snapshot, block.inline));
+function editableParagraph(snapshot: DocumentSnapshot, target: TextTarget, block: Extract<Block, { type: 'paragraph' }>, container = 'section', context = resolveReferences(snapshot)): PMNode {
+  return schema.nodes.paragraph!.create({ target: targetKey(target), label: `${target.kind} ${target.id} ${target.index}`, container }, inlineNodes(snapshot, block.inline, '', [], context));
 }
 
 function blockProjection(snapshot: DocumentSnapshot): Projection {
+  const context = resolveReferences(snapshot);
   const targets = new Map(textTargets(snapshot).map(item => [item.block, item.target]));
   const nodes: PMNode[] = [];
-  const addProtected = (block: Block, html = protectedHtml(snapshot, block)) => nodes.push(schema.nodes.protectedBlock!.create(html));
+  const addProtected = (block: Block, html = protectedHtml(snapshot, block, context)) => nodes.push(schema.nodes.protectedBlock!.create(html));
   for (const block of snapshot.blocks) {
     if (block.type === 'heading') {
       const target = targets.get(block);
-      if (target) nodes.push(editableHeading(snapshot, target, block)); else addProtected(block);
+      if (target) nodes.push(editableHeading(snapshot, target, block, context)); else addProtected(block);
       continue;
     }
     if (block.type === 'paragraph') {
       const target = targets.get(block);
-      if (target) nodes.push(editableParagraph(snapshot, target, block)); else addProtected(block);
+      if (target) nodes.push(editableParagraph(snapshot, target, block, 'section', context)); else addProtected(block);
       continue;
     }
     if (block.type !== 'directive') { addProtected(block); continue; }
@@ -97,8 +98,8 @@ function blockProjection(snapshot: DocumentSnapshot): Projection {
     nodes.push(schema.nodes.protectedBlock!.create({ html: `<aside><header>${header}</header></aside>`, label: `${block.name} ${block.id ?? ''}`.trim() }));
     for (const child of block.children) {
       const target = child.type === 'paragraph' ? targets.get(child) : undefined;
-      if (child.type === 'paragraph' && target) nodes.push(editableParagraph(snapshot, target, child, 'directive'));
-      else addProtected(child, protectedChildHtml(snapshot, child));
+      if (child.type === 'paragraph' && target) nodes.push(editableParagraph(snapshot, target, child, 'directive', context));
+      else addProtected(child, protectedChildHtml(snapshot, child, context));
     }
   }
   if (!nodes.length) nodes.push(schema.nodes.protectedBlock!.create({ html: '<div class="readonly-block">Empty document</div>', label: 'Empty document' }));
@@ -205,6 +206,7 @@ function pasteParts(text: string): string[] {
 }
 
 function inlineMappings(snapshot: DocumentSnapshot, target: TextTarget): InlineMapping[] {
+  const context = resolveReferences(snapshot);
   const mappings: InlineMapping[] = [];
   let offset = 0;
   function visit(nodes: Inline[], prefix = '') {
@@ -212,7 +214,7 @@ function inlineMappings(snapshot: DocumentSnapshot, target: TextTarget): InlineM
       const path = prefix + index;
       mappings.push({ path, from: offset, to: offset, value: '' });
       if (node.type === 'strong' || node.type === 'emphasis') { visit(node.children, path + '.'); return; }
-      const length = inlineText([node]).length;
+      const length = inlineText([node], context).length;
       if (node.type === 'text' && node.range && snapshot.source.slice(node.range.start, node.range.end) === node.value && !/[\r\n]/.test(node.value)) {
         mappings.push({ path, from: offset, to: offset + length, value: node.value });
       }
@@ -241,7 +243,7 @@ export class DocumentEditor {
     this.view = new EditorView(host, {
       state: EditorState.create({ schema, doc: this.baseline.doc }),
       attributes: { role: 'document', 'aria-label': 'NaruDoc document' },
-      nodeViews: { protectedBlock: node => new ProtectedBlockView(node) },
+      nodeViews: { protectedBlock: node => new ProtectedBlockView(node, id => this.navigate(id)) },
       dispatchTransaction: transaction => this.dispatch(transaction),
       handleTextInput: (_view, from, to, text) => this.applyRange(from, to, text),
       handlePaste: (_view, event) => {
@@ -252,6 +254,8 @@ export class DocumentEditor {
       handleKeyDown: (_view, event) => this.keyDown(event),
       handleDrop: () => { this.report('Drag/drop is not supported.'); return true; },
       handleDOMEvents: {
+        click: (_view, event) => this.referenceEvent(event),
+        keydown: (_view, event) => event.key === 'Enter' && (event.target as Element).hasAttribute('data-reference') ? this.referenceEvent(event) : false,
         compositionstart: () => { this.composing = true; this.session.drafts.set(DOCUMENT_DRAFT, this.view.state.doc.textContent); this.session.notify(); return false; },
         compositionend: () => { setTimeout(() => { this.composing = false; this.commitView(); }, 0); return false; },
         cut: (_view, event) => {
@@ -269,6 +273,17 @@ export class DocumentEditor {
       if (this.session.source !== this.baselineSource()) this.syncFromSession();
     };
     session.listeners.add(listener); this.unsubscribe = () => session.listeners.delete(listener);
+  }
+
+  private navigate(id: string) {
+    const target = Array.from(this.host.querySelectorAll<HTMLElement>('[data-table-id]')).find(node => node.dataset.tableId === id);
+    target?.scrollIntoView({ block: 'center' });
+  }
+
+  private referenceEvent(event: Event): boolean {
+    const ref = (event.target as Element).closest('[data-reference]');
+    if (!ref) return false;
+    event.preventDefault(); this.navigate(ref.getAttribute('data-reference')!); return true;
   }
 
   private baselineSource(): string { return this.baseline.source; }
@@ -403,6 +418,8 @@ export class DocumentEditor {
     if (event.key === 'Backspace' || event.key === 'Delete') {
       event.preventDefault();
       if (!selection.empty) return this.applyRange(selection.from, selection.to, '');
+      const adjacent = event.key === 'Backspace' ? selection.$from.nodeBefore : selection.$from.nodeAfter;
+      if (adjacent?.type.name === 'protectedInline') { this.report('Protected inline content cannot be deleted.'); return true; }
       const single = this.singleTargetRange(selection.from, selection.to);
       if (single && single.start.target.kind !== 'paragraph') {
         const value = single.block.text, offset = single.start.offset;
@@ -529,9 +546,14 @@ function nextOffset(value: string, offset: number): number { return offset < val
 
 class ProtectedBlockView {
   readonly dom: HTMLElement;
-  constructor(node: PMNode) {
+  constructor(node: PMNode, navigate: (id: string) => void) {
     this.dom = document.createElement('div'); this.dom.className = 'readonly-block'; this.dom.innerHTML = node.attrs.html;
-    this.dom.addEventListener('click', event => { if ((event.target as Element).closest('a')) event.preventDefault(); });
+    if (node.attrs.target) this.dom.dataset.tableId = node.attrs.target;
+    this.dom.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
+    this.dom.addEventListener('click', event => {
+      const link = (event.target as Element).closest('a');
+      if (link) { event.preventDefault(); const id = link.getAttribute('data-reference'); if (id) navigate(id); }
+    });
   }
   ignoreMutation() { return true; }
   stopEvent() { return true; }

@@ -1,5 +1,6 @@
-import { boundary, inlineText, NaruError, type DocumentSnapshot, type Inline, type Paragraph, type TextEdit } from '@naruforge/narudoc-model';
+import { boundary, inlineText, NaruError, type DocumentSnapshot, type Inline, type Paragraph, type TextEdit, type ReferenceContext } from '@naruforge/narudoc-model';
 import { parseDocument } from '@naruforge/narudoc-parser';
+import { resolveReferences } from './references.js';
 import { directSectionBody } from './query.js';
 import { assertValid } from './validation.js';
 import { applyTextEdits, minimalEdit } from './patch.js';
@@ -26,13 +27,13 @@ function paragraphAt(doc: DocumentSnapshot, id: string, point: Point, label: str
   pointValue(point, label);
   const target = paragraphs(doc, id)[point.index];
   if (!target) throw new NaruError('NARU_TARGET', `${label} paragraph index is out of range.`);
-  const value = inlineText(target.inline);
+  const value = inlineText(target.inline, resolveReferences(doc));
   if (!boundary(value, point.offset)) throw new NaruError('NARU_TARGET', `${label} offset is out of range or splits Unicode.`);
   return target;
 }
 
 function copy(node: Inline): Inline {
-  if (node.type === 'text' || node.type === 'code') return { ...node };
+  if (node.type === 'text' || node.type === 'code' || node.type === 'reference') return { ...node };
   if (node.type === 'link') return { ...node, children: node.children.map(copy) };
   if (node.type === 'strong' || node.type === 'emphasis') return { ...node, children: node.children.map(copy) };
   throw new NaruError('NARU_ARGUMENT', 'Unknown inline node.');
@@ -43,11 +44,11 @@ function sourceMatches(source: string, node: Inline): boolean {
 }
 
 /** Slice displayed inline text without allowing a protected node to be cut. */
-function slicePieces(source: string, nodes: Inline[], from: number, to: number): Piece[] {
+function slicePieces(context: ReferenceContext, source: string, nodes: Inline[], from: number, to: number): Piece[] {
   const result: Piece[] = [];
   let cursor = 0;
   for (const node of nodes) {
-    const length = inlineText([node]).length;
+    const length = inlineText([node], context).length;
     const start = cursor, end = cursor + length;
     cursor = end;
     if (to <= start) break;
@@ -60,13 +61,13 @@ function slicePieces(source: string, nodes: Inline[], from: number, to: number):
       else result.push({ node: { type: 'text', value: node.value.slice(localFrom, localTo) }, original: false });
       continue;
     }
-    if (node.type === 'code' || node.type === 'link') {
+    if (node.type === 'code' || node.type === 'link' || node.type === 'reference') {
       if (!complete) throw new NaruError('NARU_ARGUMENT', 'Link and inline code boundaries are protected.');
       result.push({ node: copy(node), original: true });
       continue;
     }
     if (node.type !== 'strong' && node.type !== 'emphasis') throw new NaruError('NARU_ARGUMENT', 'Unknown inline node.');
-    const children = slicePieces(source, node.children, localFrom, localTo);
+    const children = slicePieces(context, source, node.children, localFrom, localTo);
     if (children.length) {
       const sliced: Inline = complete && children.every(piece => piece.original)
         ? copy(node)
@@ -77,23 +78,23 @@ function slicePieces(source: string, nodes: Inline[], from: number, to: number):
   return result;
 }
 
-function protectedOverlap(source: string, nodes: Inline[], from: number, to: number, cursor = 0): void {
+function protectedOverlap(context: ReferenceContext, source: string, nodes: Inline[], from: number, to: number, cursor = 0): void {
   for (const node of nodes) {
-    const length = inlineText([node]).length, start = cursor, end = cursor + length;
+    const length = inlineText([node], context).length, start = cursor, end = cursor + length;
     if (to > start && from < end) {
-      if (node.type === 'code' || node.type === 'link') throw new NaruError('NARU_ARGUMENT', 'Link and inline code content are protected.');
+      if (node.type === 'code' || node.type === 'link' || node.type === 'reference') throw new NaruError('NARU_ARGUMENT', 'Link and inline code content are protected.');
       if (node.type === 'text' && !sourceMatches(source, node)) throw new NaruError('NARU_ARGUMENT', 'Escaped inline text is protected.');
-      if (node.type === 'strong' || node.type === 'emphasis') protectedOverlap(source, node.children, from, to, start);
+      if (node.type === 'strong' || node.type === 'emphasis') protectedOverlap(context, source, node.children, from, to, start);
     }
     cursor = end;
   }
 }
 
-function marksAt(nodes: Inline[], offset: number, cursor = 0, marks: Array<'strong' | 'emphasis'> = []): Array<'strong' | 'emphasis'> {
+function marksAt(context: ReferenceContext, nodes: Inline[], offset: number, cursor = 0, marks: Array<'strong' | 'emphasis'> = []): Array<'strong' | 'emphasis'> {
   for (const node of nodes) {
-    const length = inlineText([node]).length, start = cursor, end = cursor + length;
+    const length = inlineText([node], context).length, start = cursor, end = cursor + length;
     if (offset < end || (offset === end && end === cursor + length && node === nodes.at(-1))) {
-      if (node.type === 'strong' || node.type === 'emphasis') return marksAt(node.children, offset, start, [...marks, node.type]);
+      if (node.type === 'strong' || node.type === 'emphasis') return marksAt(context, node.children, offset, start, [...marks, node.type]);
       return marks;
     }
     cursor = end;
@@ -115,7 +116,10 @@ function renderPiece(source: string, piece: Piece): string {
   const node = piece.node;
   if (piece.original && node.range) return source.slice(node.range.start, node.range.end);
   if (node.type === 'text') return escapePlainText(node.value);
-  if (node.type === 'code' || node.type === 'link') throw new NaruError('NARU_ARGUMENT', 'Protected inline content cannot be rewritten.');
+  if (node.type === 'code' || node.type === 'link' || node.type === 'reference') {
+    if (node.range) return source.slice(node.range.start, node.range.end);
+    throw new NaruError('NARU_ARGUMENT', 'Protected inline content cannot be rewritten.');
+  }
   if (node.type !== 'strong' && node.type !== 'emphasis') throw new NaruError('NARU_ARGUMENT', 'Unknown inline node.');
   const marker = node.type === 'strong' ? '**' : '*';
   return marker + node.children.map(child => renderPiece(source, { node: child, original: false })).join('') + marker;
@@ -140,6 +144,7 @@ function normalizePaste(text: string): string[] {
 }
 
 function paragraphSources(doc: DocumentSnapshot, request: RangeRequest, mode: 'replace' | 'split' | 'join'): { sources: string[]; expectedTexts: string[]; first: Paragraph; last: Paragraph; firstIndex: number; lastIndex: number } {
+  const context = resolveReferences(doc);
   const ps = paragraphs(doc, request.id);
   const first = paragraphAt(doc, request.id, request.from, 'Start');
   const last = paragraphAt(doc, request.id, request.to, 'End');
@@ -149,7 +154,7 @@ function paragraphSources(doc: DocumentSnapshot, request: RangeRequest, mode: 'r
     const blockIndex = doc.blocks.indexOf(block);
     if (index > request.from.index && blockIndex !== doc.blocks.indexOf(ps[index - 1]!) + 1) throw new NaruError('NARU_ARGUMENT', 'Paragraph range cannot cross a protected block.');
   }
-  const firstText = inlineText(first.inline), lastText = inlineText(last.inline), middleText = ps.slice(request.from.index + 1, request.to.index).map(block => inlineText(block.inline)).join('\n');
+  const firstText = inlineText(first.inline, context), lastText = inlineText(last.inline, context), middleText = ps.slice(request.from.index + 1, request.to.index).map(block => inlineText(block.inline, context)).join('\n');
   const selected = mode === 'split'
     ? firstText
     : mode === 'join'
@@ -160,27 +165,27 @@ function paragraphSources(doc: DocumentSnapshot, request: RangeRequest, mode: 'r
   if (selected !== request.expected) throw new NaruError('NARU_STALE', 'Selected paragraph text no longer matches the snapshot.');
   const startNodes = first.inline, endNodes = last.inline;
   const sameParagraph = request.from.index === request.to.index;
-  protectedOverlap(doc.source, startNodes, request.from.offset, sameParagraph ? request.to.offset : firstText.length);
+  protectedOverlap(context, doc.source, startNodes, request.from.offset, sameParagraph ? request.to.offset : firstText.length);
   if (!sameParagraph) {
-    protectedOverlap(doc.source, endNodes, 0, request.to.offset);
-    for (const block of ps.slice(request.from.index + 1, request.to.index)) protectedOverlap(doc.source, block.inline, 0, inlineText(block.inline).length);
+    protectedOverlap(context, doc.source, endNodes, 0, request.to.offset);
+    for (const block of ps.slice(request.from.index + 1, request.to.index)) protectedOverlap(context, doc.source, block.inline, 0, inlineText(block.inline, context).length);
   }
-  const fromMarks = marksAt(startNodes, request.from.offset);
-  const toMarks = marksAt(endNodes, request.to.offset);
+  const fromMarks = marksAt(context, startNodes, request.from.offset);
+  const toMarks = marksAt(context, endNodes, request.to.offset);
   if (mode === 'replace' && request.from.index !== request.to.index && JSON.stringify(fromMarks) !== JSON.stringify(toMarks)) throw new NaruError('NARU_ARGUMENT', 'A cross-paragraph replacement cannot cross a mark boundary.');
-  const before = slicePieces(doc.source, startNodes, 0, request.from.offset);
-  const after = sameParagraph ? slicePieces(doc.source, startNodes, request.to.offset, firstText.length) : slicePieces(doc.source, endNodes, request.to.offset, lastText.length);
+  const before = slicePieces(context, doc.source, startNodes, 0, request.from.offset);
+  const after = sameParagraph ? slicePieces(context, doc.source, startNodes, request.to.offset, firstText.length) : slicePieces(context, doc.source, endNodes, request.to.offset, lastText.length);
   const beforeText = firstText.slice(0, request.from.offset), afterText = lastText.slice(request.to.offset);
   let sources: string[];
   let expectedTexts: string[];
   if (mode === 'split') {
     if (!sameParagraph || request.from.offset !== request.to.offset) throw new NaruError('NARU_ARGUMENT', 'Split requires one paragraph and a collapsed offset.');
-    const right = slicePieces(doc.source, startNodes, request.from.offset, firstText.length);
+    const right = slicePieces(context, doc.source, startNodes, request.from.offset, firstText.length);
     sources = [renderPieces(doc.source, before), renderPieces(doc.source, right)];
     expectedTexts = [beforeText, afterText];
   } else if (mode === 'join') {
     if (request.from.index === request.to.index || request.from.offset !== firstText.length || request.to.offset !== 0) throw new NaruError('NARU_ARGUMENT', 'Join requires the end of one paragraph and the start of the next.');
-    sources = [renderPieces(doc.source, [...slicePieces(doc.source, startNodes, 0, firstText.length), ...slicePieces(doc.source, endNodes, 0, lastText.length)])];
+    sources = [renderPieces(doc.source, [...slicePieces(context, doc.source, startNodes, 0, firstText.length), ...slicePieces(context, doc.source, endNodes, 0, lastText.length)])];
     expectedTexts = [firstText + lastText];
   } else {
     const parts = normalizePaste(request.text);
@@ -213,7 +218,8 @@ function planParagraphSource(doc: DocumentSnapshot, request: RangeRequest, mode:
   const nextParagraphs = body.filter((block): block is Paragraph => block.type === 'paragraph');
   const expectedCount = paragraphs(doc, request.id).length - (plan.lastIndex - plan.firstIndex + 1) + plan.sources.length;
   if (nextParagraphs.length !== expectedCount) throw new NaruError('NARU_ARGUMENT', 'Replacement text created an unsupported document structure.');
-  const actual = nextParagraphs.slice(plan.firstIndex, plan.firstIndex + plan.expectedTexts.length).map(block => inlineText(block.inline));
+  const context = resolveReferences(next);
+  const actual = nextParagraphs.slice(plan.firstIndex, plan.firstIndex + plan.expectedTexts.length).map(block => inlineText(block.inline, context));
   if (JSON.stringify(actual) !== JSON.stringify(plan.expectedTexts)) throw new NaruError('NARU_ARGUMENT', 'Replacement text changed paragraph structure or markup.');
   return { edits, next };
 }
@@ -226,9 +232,9 @@ export function planJoinParagraph(doc: DocumentSnapshot, operation: { id: string
   const left = paragraphAt(doc, operation.id, { index: operation.index, offset: 0 }, 'Join');
   const ps = paragraphs(doc, operation.id), right = ps[operation.index + 1];
   if (!right) throw new NaruError('NARU_TARGET', 'Join has no following paragraph.');
-  const expected = inlineText(left.inline) + '\n' + inlineText(right.inline);
+  const expected = inlineText(left.inline, resolveReferences(doc)) + '\n' + inlineText(right.inline, resolveReferences(doc));
   if (expected !== operation.expected) throw new NaruError('NARU_STALE', 'Joined paragraph text no longer matches the snapshot.');
-  return planParagraphSource(doc, { id: operation.id, from: { index: operation.index, offset: inlineText(left.inline).length }, to: { index: operation.index + 1, offset: 0 }, expected, text: '' }, 'join');
+  return planParagraphSource(doc, { id: operation.id, from: { index: operation.index, offset: inlineText(left.inline, resolveReferences(doc)).length }, to: { index: operation.index + 1, offset: 0 }, expected, text: '' }, 'join');
 }
 
 export function planReplaceParagraphRange(doc: DocumentSnapshot, operation: RangeRequest) {

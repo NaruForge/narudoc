@@ -1,5 +1,5 @@
 import { boundary, inlineText, NaruError, readOperation, type DocumentSnapshot, type Operation, type TextTarget } from '@naruforge/narudoc-model';
-import { directSectionBody, getSection, getTable, parseDocument, planOperation, planSequence, textTarget, validateDocument } from '@naruforge/narudoc-core';
+import { resolveReferences, directSectionBody, getSection, getTable, parseDocument, planOperation, planSequence, textTarget, validateDocument } from '@naruforge/narudoc-core';
 
 /** Offset within displayed inline text, never a source byte/DOM/ProseMirror position. */
 export interface SelectionPoint { target: TextTarget; offset: number }
@@ -17,10 +17,10 @@ function sameRun(a: Operation, b: Operation): boolean {
 function paragraphs(doc: DocumentSnapshot, id: string) {
   return directSectionBody(doc, id).blocks.filter((block): block is Extract<typeof block, { type: 'paragraph' }> => block.type === 'paragraph');
 }
-function paragraphText(doc: DocumentSnapshot, id: string, index: number): string { return inlineText(paragraphs(doc, id)[index]!.inline); }
+function paragraphText(doc: DocumentSnapshot, id: string, index: number): string { return inlineText(paragraphs(doc, id)[index]!.inline, resolveReferences(doc)); }
 function selectedText(doc: DocumentSnapshot, id: string, from: { index: number; offset: number }, to: { index: number; offset: number }): string {
   const ps = paragraphs(doc, id), first = paragraphText(doc, id, from.index), last = paragraphText(doc, id, to.index);
-  const middle = ps.slice(from.index + 1, to.index).map(p => inlineText(p.inline)).join('\n');
+  const middle = ps.slice(from.index + 1, to.index).map(p => inlineText(p.inline, resolveReferences(doc))).join('\n');
   return from.index === to.index ? first.slice(from.offset, to.offset) : first.slice(from.offset) + '\n' + (middle ? middle + '\n' : '') + last.slice(0, to.offset);
 }
 function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, operation: Operation): Operation | undefined {
@@ -30,7 +30,7 @@ function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, ope
     case 'setTableCell': {
       const table = getTable(before, operation.sectionId, operation.tableIndex), row = operation.part === 'header' ? table.header : table.rows[operation.row], cell = row?.cells[operation.column];
       if (!cell) return undefined;
-      return { ...operation, text: inlineText(cell.inline) };
+      return { ...operation, text: before.source.slice(cell.contentRange.start, cell.contentRange.end) };
     }
     case 'setDirectiveAttribute': {
       const block = before.blocks.find(candidate => 'id' in candidate && candidate.id === operation.id);
@@ -73,6 +73,7 @@ function inverseOperation(before: DocumentSnapshot, after: DocumentSnapshot, ope
     case 'insertSection': return { type: 'removeSection', id: operation.id };
     case 'insertChildSection': return { type: 'removeSection', id: operation.id };
     case 'insertTable':
+    case 'setTableMetadata': case 'insertReference': case 'setReferenceTarget':
     case 'insertDirective':
     case 'removeSection':
     case 'moveSection':
@@ -147,7 +148,7 @@ export class SourceSession {
     this.checkGeneration(generation);
     if (epoch !== this.epoch) throw new NaruError('NARU_STALE', 'Selection belongs to a replaced structure.');
     for (const point of [anchor, head]) {
-      const value = inlineText(textTarget(this.current, point.target).inline);
+      const value = inlineText(textTarget(this.current, point.target).inline, resolveReferences(this.current));
       if (!boundary(value, point.offset)) throw new NaruError('NARU_TARGET', 'Selection offset is out of range or splits Unicode.');
     }
     this.selected = copy({ anchor, head, generation, epoch });

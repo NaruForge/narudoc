@@ -4,6 +4,8 @@
 
 ## 의존 경계
 
+표 ID/번호와 의미 참조는 Core의 `resolveReferences(snapshot)`이 한 번의 해석 결과로 제공한다. Model의 `ReferenceContext`는 해당 snapshot 및 node identity와 결합하며 renderer/adapter/표시 offset 계산이 공유한다. `renderHtml(snapshot, context?)`, `renderBlockHtml(block, context?)`은 새 의미 요소에서 context를 요구하고 다른 snapshot/node의 context를 `NARU_RENDER_CONTEXT`로 거부한다. 기존 일반 블록 호출은 context 없이 유지한다. Invalid 문서에는 같은 snapshot에서 만든 진단 context로 unresolved 문자열을 표시한다. 번호를 source에 저장하거나 renderer가 Core를 import하지 않는다. [Proposed ADR 0012](adr/0012-table-semantic-references.md)는 이 선택을 기록하며 채택을 뜻하지 않는다.
+
 | 책임 | 허용 의존 |
 | --- | --- |
 | model | 내부 의존 없음 |

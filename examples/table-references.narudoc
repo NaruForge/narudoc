@@ -1,0 +1,17 @@
+# Control {#control}
+
+See [@tab-parameters] and [the parameter table](#tab-parameters).
+
+@table id="tab-parameters" caption="Control parameters"
+| Parameter | Value | Unit |
+| --- | --- | --- |
+| Voltage | 400 | V |
+
+# Limits {#limits}
+
+Compare [@tab-parameters] with [@tab-limits].
+
+@table id="tab-limits" caption="Operating limits"
+| Parameter | Minimum | Maximum |
+| --- | --- | --- |
+| Voltage | 360 | 440 |

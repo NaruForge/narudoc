@@ -1,6 +1,7 @@
 import { ID_PATTERN, validKey, wellFormed, type Attribute, type Block, type Diagnostic, type DirectiveBodyBlock, type DocumentSnapshot, type Heading } from '@naruforge/narudoc-model';
 import { parseInline } from './inline.js';
 import { parseTableRow } from './table.js';
+import { annotationStart, parseAnnotation } from './annotation.js';
 export { parseInline } from './inline.js';
 
 interface Line { start: number; end: number; next: number; text: string }
@@ -19,7 +20,7 @@ const headingPattern = /^(#{1,6})[ \t]+/;
 const fencePattern = /^(`{3,}|~{3,})([^\r\n]*)$/;
 const listPattern = /^([-+*]|\d{1,9}[.)])[ \t]+(.*)$/;
 const directivePattern = /^:::([A-Za-z][A-Za-z0-9_-]*)[ \t]*$/;
-const special = (text: string) => headingPattern.test(text) || fencePattern.test(text) || listPattern.test(text) || text.startsWith(':::');
+const special = (text: string) => headingPattern.test(text) || fencePattern.test(text) || listPattern.test(text) || text.startsWith(':::') || annotationStart(text);
 
 export function parseDocument(source: string): DocumentSnapshot {
   const all = lines(source), blocks: Block[] = [], diagnostics: Diagnostic[] = [];
@@ -128,6 +129,17 @@ export function parseDocument(source: string): DocumentSnapshot {
       if (id !== undefined) { node.id = id; if (!ID_PATTERN.test(id)) error('NARU_ID', `Invalid ID: ${id}`, line.start, line.end); }
       blocks.push(node); i = j + 1; continue;
     }
+    let annotation: ReturnType<typeof parseAnnotation> = {};
+    if (annotationStart(line.text)) {
+      annotation = parseAnnotation(line.text, line.start, diagnostics);
+      let next = i + 1;
+      if (all[next] && !all[next]!.text.trim()) next++;
+      if (!hasHeading || !tableStart(next)) {
+        error('NARU_TABLE_ANNOTATION', 'Table annotation must precede a section pipe table with at most one blank line.', line.start, line.end);
+        i++; continue;
+      }
+      i = next;
+    }
     const table = hasHeading ? tableStart(i) : undefined;
     if (table) {
       const width = table.header.cells.length;
@@ -140,7 +152,7 @@ export function parseDocument(source: string): DocumentSnapshot {
         if (row.cells.length !== width) error('NARU_TABLE_COLUMNS', 'Table row width differs from header.', row.range.start, row.range.end);
         rows.push(row); j++;
       }
-      blocks.push({ type: 'table', header: table.header, separatorRange: table.separator.range, rows, range: { start: line.start, end: all[j - 1]!.end } });
+      blocks.push({ ...annotation, type: 'table', header: table.header, separatorRange: table.separator.range, rows, range: { start: line.start, end: all[j - 1]!.end } });
       i = j; continue;
     }
     i = scanBodyBlock(i, blocks, special, hasHeading);

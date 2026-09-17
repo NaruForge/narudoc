@@ -4,7 +4,7 @@ import { EditorView } from 'prosemirror-view';
 import { history, undo, redo } from 'prosemirror-history';
 export { undo, redo } from 'prosemirror-history';
 import { inlineText, NaruError, type DocumentSnapshot, type Inline, type Operation, type TextTarget } from '@naruforge/narudoc-model';
-import { parseDocument, planOperation, textTarget, textTargets } from '@naruforge/narudoc-core';
+import { resolveReferences, parseDocument, planOperation, textTarget, textTargets } from '@naruforge/narudoc-core';
 import { SourceSession } from './session.js';
 export { SourceSession } from './session.js';
 import { renderBlockHtml } from '@naruforge/narudoc-renderer-html';
@@ -21,6 +21,7 @@ const schema = new Schema({
 });
 interface Mapping { path: string; from: number; to: number; value: string }
 function projection(snapshot: DocumentSnapshot, target: TextTarget) {
+  const context = resolveReferences(snapshot);
   const mappings: Mapping[] = [];
   const gaps: Mapping[] = [];
   let position = 1;
@@ -35,7 +36,7 @@ function projection(snapshot: DocumentSnapshot, target: TextTarget) {
         return node.value ? [schema.text(node.value, marks)] : [];
       }
       position++;
-      return [schema.nodes.protected!.create({ label: inlineText([node]), kind: node.type }, null, marks)];
+      return [schema.nodes.protected!.create({ label: inlineText([node], context), kind: node.type }, null, marks)];
     });
     gaps.push({ path: prefix + nodes.length, from: position, to: position, value: '' });
     return result;
@@ -147,7 +148,7 @@ export function mountDocument(host: HTMLElement, session: SourceSession, report:
   const readonly = (parent: HTMLElement, block: Parameters<typeof renderBlockHtml>[0]) => {
     const wrapper = document.createElement('div'); wrapper.className = 'readonly-block'; wrapper.title = 'Read only';
     if (block.type === 'metadata') { const pre = document.createElement('pre'); pre.textContent = session.source.slice(block.range.start, block.range.end); wrapper.append(pre); }
-    else wrapper.innerHTML = renderBlockHtml(block);
+    else wrapper.innerHTML = renderBlockHtml(block, resolveReferences(session.snapshot));
     wrapper.addEventListener('click', e => { if ((e.target as Element).closest('a')) e.preventDefault(); }); parent.append(wrapper);
   };
   const editable = (parent: HTMLElement, target: TextTarget, tag: string) => {

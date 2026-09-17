@@ -1,5 +1,6 @@
 import { NaruError, wellFormed, readInput, tableInputSchema, type TableInput } from '@naruforge/narudoc-model';
 import { parseDocument } from '@naruforge/narudoc-parser';
+import { annotationSource } from './reference-edit.js';
 
 export function tableCellText(value: unknown): string {
   if (typeof value !== 'string' || !wellFormed(value) || /[\x00-\x1f\x7f]/.test(value) || value.trim() !== value) throw new NaruError('NARU_ARGUMENT', 'Cell must be a trimmed single-line Unicode string (empty allowed).');
@@ -17,7 +18,9 @@ export function readTableInput(value: unknown): TableInput {
     if (row.length !== headers.length) throw new NaruError('NARU_ARGUMENT', 'Every row must match header width.');
     return row.map(tableCellText);
   });
-  return { headers, rows };
+  if (input.caption !== undefined && input.id === undefined) throw new NaruError('NARU_ARGUMENT', 'Caption requires id.');
+  if (input.id !== undefined) annotationSource(input.id, input.caption);
+  return { headers, rows, ...(input.id === undefined ? {} : { id: input.id }), ...(input.caption === undefined ? {} : { caption: input.caption }) };
 }
 export function tableSource(input: TableInput, eol: string): string {
   const result = [input.headers, input.headers.map(() => '---'), ...input.rows].map(row => `| ${row.join(' | ')} |`).join(eol);
@@ -25,5 +28,5 @@ export function tableSource(input: TableInput, eol: string): string {
   const expectedRows = [input.headers, ...input.rows];
   if (doc.diagnostics.length || doc.blocks.length !== 2 || table?.type !== 'table' || table.rows.length !== input.rows.length ||
       [table.header, ...table.rows].some((row, i) => row.cells.length !== input.headers.length || row.cells.some((cell, j) => doc.source.slice(cell.contentRange.start, cell.contentRange.end) !== expectedRows[i]![j]))) throw new NaruError('NARU_ARGUMENT', 'Cell syntax crosses table boundaries.');
-  return result;
+  return input.id === undefined ? result : annotationSource(input.id, input.caption) + eol + result;
 }

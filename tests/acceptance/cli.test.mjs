@@ -21,8 +21,8 @@ function ok(result) { assert.equal(result.status, 0, result.stderr || result.err
 
 test('help and version', () => {
   assert.match(ok(cli(['--help'])), /headless/);
-  assert.equal(ok(cli(['--version'])), '0.0.3\n');
-  assert.equal(JSON.parse(ok(cli(['--version', '--json']))).version, '0.0.3');
+  assert.equal(ok(cli(['--version'])), '0.0.4\n');
+  assert.equal(JSON.parse(ok(cli(['--version', '--json']))).version, '0.0.4');
 });
 test('inspect → dry-run → edit → validate → render', async t => {
   const { file, dir } = await setup(t);

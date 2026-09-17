@@ -1,3 +1,4 @@
+import { resolveReferences } from '@naruforge/narudoc-core';
 import { SourceSession, mountDocumentProjection } from '@naruforge/narudoc-editor-adapter';
 import { outline, validateDocument } from '@naruforge/narudoc-core';
 import { renderBlockHtml } from '@naruforge/narudoc-renderer-html';
@@ -39,7 +40,7 @@ function project() {
     for (const block of session.snapshot.blocks) {
       const wrapper = document.createElement('div'); wrapper.className = 'readonly-block';
       if (block.type === 'metadata') { const pre = document.createElement('pre'); pre.textContent = session.source.slice(block.range.start, block.range.end); wrapper.append(pre); }
-      else wrapper.innerHTML = renderBlockHtml(block);
+      else wrapper.innerHTML = renderBlockHtml(block, resolveReferences(session.snapshot));
       // Document IDs belong to the source, not the application's control namespace.
       wrapper.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
       $('content').append(wrapper);

@@ -47,6 +47,15 @@ export function parseInline(source: string, depth = 0, sourceOffset?: number, ta
           ...(sourceOffset === undefined ? {} : { urlRange: { start: sourceOffset + labelEnd + 2, end: sourceOffset + linkEnd } }) }, i, linkEnd + 1));
         i = linkEnd + 1; continue;
       }
+      if (source[i + 1] === '@') {
+        let end = i + 2;
+        while (end < source.length && !/[\]\r\n]/.test(source[end]!)) end++;
+        const closed = source[end] === ']';
+        flush(); out.push(located({ type: 'reference', targetId: source.slice(i + 2, end),
+          ...(!closed ? { malformed: true } : {}),
+          ...(sourceOffset === undefined ? {} : { targetRange: { start: sourceOffset + i + 2, end: sourceOffset + end } }) }, i, end + (closed ? 1 : 0)));
+        i = end + (closed ? 1 : 0); continue;
+      }
     }
     append(ch, i, i + 1); i++;
   }

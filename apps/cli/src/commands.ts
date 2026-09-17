@@ -5,7 +5,10 @@ type Bindings = { [K in OperationName]: Binding<K> | null };
 /** Explicit null chooses the existing API/batch route, without a standalone command. */
 export const operationBindings: Bindings = {
   setInlineText: { command: 'text set', fields: { kind: 'kind', id: 'id', index: 'index', path: 'path', expected: 'expected', text: 'text' } },
-  insertTable: { command: 'table insert', fields: { sectionId: 'section', headers: { from: 'from' }, rows: { from: 'from' } } },
+  insertTable: { command: 'table insert', fields: { sectionId: 'section', headers: { from: 'from' }, rows: { from: 'from' }, id: { from: 'from' }, caption: { from: 'from' } } },
+  setTableMetadata: { command: 'table set-metadata', fields: { sectionId: 'section', tableIndex: 'index', id: 'id', caption: 'caption' } },
+  insertReference: { command: 'reference insert', fields: { id: 'id', index: 'index', path: 'path', offset: 'offset', expected: 'expected', targetId: 'target-id' } },
+  setReferenceTarget: { command: 'reference set-target', fields: { id: 'id', index: 'index', path: 'path', expectedTargetId: 'expected-target-id', targetId: 'target-id' } },
   setTableCell: { command: 'table set-cell', fields: { sectionId: 'section', tableIndex: 'index', part: 'part', row: 'row', column: 'column', text: 'text' } },
   insertDirective: { command: 'directive insert', fields: { sectionId: 'section', name: { from: 'from' }, id: { from: 'from' }, attributes: { from: 'from' }, children: { from: 'from' } } },
   renameId: { command: 'id rename', fields: { id: 'id', newId: 'new-id' } },
@@ -34,7 +37,7 @@ export const hostCommands: Record<string, Command> = {
   inspect: { description: 'Inspect parsed blocks and diagnostics as JSON.', options: { stdin }, example: 'narudoc inspect practice.narudoc --json', file: true },
   outline: { description: 'List section IDs, titles and hierarchy.', options: { stdin }, example: 'narudoc outline practice.narudoc --json', file: true },
   get: { description: 'Read an ID target; headings include their whole section.', options: { stdin, id: option('Stable ID to query.', true) }, example: 'narudoc get practice.narudoc --id control --json', file: true },
-  'table get': { description: 'Read one direct table by section and index.', options: { stdin, section: option('Section stable ID.', true), index: option('Zero-based direct table index.', true) }, example: 'narudoc table get practice.narudoc --section control --index 0 --json', file: true },
+  'table get': { description: 'Read a table by stable ID or by section and index.', options: { stdin, section: option('Section stable ID; use with index, not id.'), index: option('Zero-based direct table index; use with section.'), id: option('Table stable ID; mutually exclusive with section/index.') }, example: 'narudoc table get practice.narudoc --section control --index 0 --json', file: true },
   validate: { description: 'Check document syntax, IDs and references.', options: { stdin }, example: 'narudoc validate practice.narudoc --json', file: true },
   render: { description: 'Render safe HTML to stdout or a new file.', options: { stdin, to: option('html is the only supported format.', true), output: option('New output path; never overwrite.') }, example: 'narudoc render practice.narudoc --to html --output practice.html', file: true },
   new: { description: 'Create a new file without overwriting an existing file.', options: { title: option('Title, default Untitled.'), id: option('New stable ID, default document.') }, example: 'narudoc new practice.narudoc --title Control --id control', file: true },

@@ -1,5 +1,7 @@
 # 단일 문서 로컬 편집기
 
+0.0.4는 [표 annotation과 의미 참조](format.md#표-annotation과-의미-참조--004)의 번호/caption을 표시한다. CLI/API에서 작성한 참조는 보호된 inline이며 클릭하면 편집기 안의 해당 표로 이동한다. 일반 입력으로 목적지를 손상시키지 않으며 주변 문장 편집·Save/Reload는 참조 원문을 유지한다. 별도 table/reference 작성 toolbar는 제공하지 않는다. 원문 ID는 앱 DOM ID로 등록하지 않는다. Invalid 문서의 미해결 참조는 원문형 문자열과 진단으로 표시한다.
+
 저장소 checkout에서 Node22 이상과 고정 pnpm으로 실행한다. npm 배포나 계정은 필요하지 않다.
 
 ```sh
