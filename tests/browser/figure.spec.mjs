@@ -50,8 +50,15 @@ test('insert, replace, save, reload and export keep IDs and linked assets portab
   await page.locator('#save').click(); await expect(page.locator('#state')).toHaveText('Saved');
   const saved = await readFile(file, 'utf8');
   expect(saved).toContain('@figure id="fig-revised" src="assets/control.png" alt="Second copy"');
+  // The ID field is optional: an empty input uses the uniqueness-checked suggestion.
+  await page.locator('#figure [name=id]').fill('');
+  await page.locator('#figure [name=src]').fill('assets/control-revised.png');
+  await page.locator('#figure [name=alt]').fill('Suggested');
+  await page.locator('#figure button').click();
+  await page.locator('#save').click(); await expect(page.locator('#state')).toHaveText('Saved');
+  expect(await readFile(file, 'utf8')).toContain('@figure id="fig-1" src="assets/control-revised.png" alt="Suggested"');
   await page.locator('#reload').click(); await expect(page.locator('#state')).toHaveText('Saved');
-  await expect(page.locator('#content figure img')).toHaveCount(2);
+  await expect(page.locator('#content figure img')).toHaveCount(3);
   await expect(page.locator('#content figcaption').nth(0)).toHaveText('Figure 1: Revised layout');
   // Export links relative paths, stores no token and renders from file:// under its CSP.
   await page.locator('#export').click();

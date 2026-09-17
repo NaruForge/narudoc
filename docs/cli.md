@@ -35,7 +35,7 @@ pnpm exec narudoc figure set practice.narudoc --id fig-control --src assets/cont
 pnpm exec narudoc validate practice.narudoc --json
 ```
 
-파일 존재·형식·경로 안전성은 문법 validation과 분리된 resource 검사다. 파일 입력의 `validate`는 이 검사를 `NARU_ASSET_*` 진단으로 포함하며 error가 있으면 종료 코드 3이다. `--stdin`은 asset root가 없으므로 자원 검사를 건너뛴다. 기존 문서의 모든 편집·`batch`·`render`는 결과 문서의 asset이 유효할 때만 쓰며, 실패 시 원본과 출력을 변경하지 않는다. `render`의 figure `<img>`는 문서 기준 상대 경로를 percent-encode한 linked URL이며 문서와 assets를 함께 옮겨야 한다.
+파일 존재·형식·경로 안전성은 문법 validation과 분리된 resource 검사다. 파일 입력의 `validate`는 이 검사를 `NARU_ASSET_*` 진단으로 포함하며 error가 있으면 종료 코드 3이다. `--stdin`은 asset root가 없으므로 자원 검사를 건너뛴다. 기존 문서의 모든 편집·`batch`·`render`는 결과 문서의 asset이 유효할 때만 쓰며, 실패 시 원본과 출력을 변경하지 않는다. `render`의 figure `<img>`는 linked URL이다. stdout 출력과 web export(문서 옆 `FILE.html`)는 문서 기준 상대 경로를 percent-encode하고, `--output`이 다른 디렉터리면 그 위치에서 asset까지의 상대 URL로 다시 계산한다. 다른 filesystem root의 출력은 거부한다. 문서와 assets의 상대 배치를 유지해 함께 옮겨야 한다.
 
 ### 일반 명령 표
 

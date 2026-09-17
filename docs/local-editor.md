@@ -20,7 +20,7 @@ pnpm narudoc edit ./examples/visual-fidelity.narudoc
 
 오른쪽 도구에서 하위 섹션, 문단, 한 문단 requirement/note를 추가한다. 새 객체의 ID·제목·내용과 문단 위치(0부터)를 입력하며 `.narudoc` delimiter나 JSON은 입력하지 않는다. Directive를 고르고 `status` 등의 generic 속성을 수정할 수 있다. 별도 requirement 상태 schema는 없다. Core가 ID·참조·문법을 검증하고 실패한 form 값은 남는다.
 
-Figure form은 문서 폴더 기준 상대 경로(예: `assets/control.png`)로 기존 PNG/JPEG/WebP를 참조하는 그림을 추가하고, 기존 Figure를 골라 src/alt/caption을 바꾼다. 새 Figure ID는 사용 중이지 않은 `fig-N`을 placeholder로 제안하며 직접 입력도 가능하다. src를 교체해도 Figure ID와 본문 참조는 유지된다. Asset 파일의 업로드·복사·삭제는 제공하지 않으므로 파일은 문서 폴더 안에 미리 둔다. 누락·차단된 asset은 placeholder와 Validation 목록의 `NARU_ASSET_*` 진단으로 표시되며, 유효한 경로로 교체해 복구한다. Asset 진단이 있는 결과는 Save/export가 거부되고 draft는 유지된다.
+Figure form은 문서 폴더 기준 상대 경로(예: `assets/control.png`)로 기존 PNG/JPEG/WebP를 참조하는 그림을 추가하고, 기존 Figure를 골라 src/alt/caption을 바꾼다. 새 Figure ID는 사용 중이지 않은 `fig-N`을 제안하며, 비워 두면 그 제안이 사용되고 직접 수정도 가능하다. src를 교체해도 Figure ID와 본문 참조는 유지된다. Asset 파일의 업로드·복사·삭제는 제공하지 않으므로 파일은 문서 폴더 안에 미리 둔다. 누락·차단된 asset은 placeholder와 Validation 목록의 `NARU_ASSET_*` 진단으로 표시되며, 유효한 경로로 교체해 복구한다. Asset 진단이 있는 결과는 Save/export가 거부되고 draft는 유지된다.
 
 상단은 파일·미저장 상태를, 오른쪽은 공통 validation의 오류와 경고를 표시한다. 오류 draft/composition 중에는 저장과 구조 변경이 차단된다. 문서 자체가 잘못됐다면 읽기 전용 본문과 진단을 보여준다. ID 없는 heading도 읽을 수 있지만 시각 편집 대상이 아니다. 파일 복구가 필요한 경우 외부에서 수정한 뒤 Reload한다.
 

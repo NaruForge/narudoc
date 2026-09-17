@@ -7,7 +7,7 @@ const $ = id => document.getElementById(id);
 const token = location.hash.slice(1) || sessionStorage.getItem('narudoc-token');
 if (location.hash) { sessionStorage.setItem('narudoc-token', token); history.replaceState(null, '', '/'); }
 let session, editors = [], documentEditor, busy = false;
-let assetUrls = new Map(), assetDiagnostics = [];
+let assetUrls = new Map(), assetDiagnostics = [], figureIdSuggestion = '';
 const report = message => { $('message').textContent = message; };
 const figureUrl = src => assetUrls.get(src);
 const dirty = () => session && (session.source !== session.baseSource || session.drafts.size > 0);
@@ -83,10 +83,11 @@ function project() {
     $('figure-edit').elements.caption.value = selectedFigure.caption ?? '';
   }
   const idInput = $('figure').elements.id;
-  if (!idInput.value) {
+  {
     const used = new Set(session.snapshot.blocks.flatMap(block => 'id' in block && block.id ? [block.id] : []));
     let n = 1; while (used.has(`fig-${n}`)) n++;
-    idInput.placeholder = `Suggestion: fig-${n}`;
+    figureIdSuggestion = `fig-${n}`;
+    idInput.placeholder = `Suggestion: ${figureIdSuggestion} (used when empty)`;
   }
   update();
 }
@@ -138,7 +139,7 @@ form('child', (v, parent) => ({ type: 'insertChildSection', parent, id: v.id, ti
 form('paragraph', (v, id) => ({ type: 'insertParagraph', id, index: Number(v.index), text: v.text }));
 form('directive', (v, sectionId) => ({ type: 'insertDirective', sectionId, name: v.name, id: v.id, attributes: {}, children: [{ type: 'paragraph', text: v.text }] }));
 form('attribute', v => ({ type: 'setDirectiveAttribute', id: v.id, key: v.key, value: v.value }));
-form('figure', (v, sectionId) => ({ type: 'insertFigure', sectionId, id: v.id, src: v.src, alt: v.alt, ...(v.caption ? { caption: v.caption } : {}) }));
+form('figure', (v, sectionId) => ({ type: 'insertFigure', sectionId, id: v.id || figureIdSuggestion, src: v.src, alt: v.alt, ...(v.caption ? { caption: v.caption } : {}) }));
 form('figure-edit', v => ({ type: 'setFigureMetadata', id: v.id, src: v.src, alt: v.alt, caption: v.caption }));
 addEventListener('beforeunload', event => { if (dirty()) { event.preventDefault(); event.returnValue = ''; } });
 // Read-only observation hooks for reproducible browser tests; no alternate save path.

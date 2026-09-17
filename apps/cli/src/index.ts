@@ -1,6 +1,7 @@
 import { startEditor, openBrowser } from '@naruforge/narudoc-web';
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { BatchOperationError, NaruError, type TextEdit } from '@naruforge/narudoc-model';
 import { resolveReferences, referenceMetadata, assertValid, createDocument, getById, getSection, getTable, targetMetadata, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
 import { renderHtml, assetHref } from '@naruforge/narudoc-renderer-html';
@@ -141,7 +142,15 @@ export async function main(args: string[]): Promise<number> {
         assertValid(doc);
         // stdin has no asset root: it renders the stored relative paths without resource validation.
         if (loaded) await assertAssetsValid(file, doc);
-        const html = renderHtml(doc, resolveReferences(doc), { assetUrl: assetHref });
+        // Linked-assets HTML must resolve from the output location, not the document location.
+        const assetUrl = loaded && values.output
+          ? (src: string): string => {
+              const rel = relative(dirname(resolve(need('output'))), resolve(dirname(loaded.path), src));
+              if (isAbsolute(rel)) throw new NaruError('NARU_ARGUMENT', 'Output must stay on the same filesystem root as the document assets.');
+              return rel.split(sep).map(encodeURIComponent).join('/');
+            }
+          : assetHref;
+        const html = renderHtml(doc, resolveReferences(doc), { assetUrl });
         if (values.output) {
           await createFile(need('output'), html);
           if (json) emit({ ...envelope, output: values.output }); else process.stdout.write(`Rendered ${values.output}\n`);

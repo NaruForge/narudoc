@@ -160,3 +160,18 @@ test('document and assets folder move together to a new absolute location', asyn
   assert.equal(cli(['validate', join(moved, 'doc.narudoc'), '--json']).status, 0);
   assert.ok(!JSON.parse(after.stdout).html.includes(moved), 'export contains no absolute paths');
 });
+test('render --output computes asset URLs relative to the output location', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'naru-render-out-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(join(dir, 'assets'));
+  await mkdir(join(dir, 'out'));
+  await copyFile(pixel, join(dir, 'assets', 'pixel.png'));
+  const file = join(dir, 'doc.narudoc');
+  await writeFile(file, '# D {#d}\n\n@figure id="fig-a" src="assets/pixel.png" alt="Diagram"\n');
+  const nested = cli(['render', file, '--to', 'html', '--output', join(dir, 'out', 'doc.html'), '--json']);
+  assert.equal(nested.status, 0, nested.stderr);
+  assert.match(await readFile(join(dir, 'out', 'doc.html'), 'utf8'), /<img src="\.\.\/assets\/pixel\.png"/, 'broken same-directory URLs are not written');
+  const beside = cli(['render', file, '--to', 'html', '--output', join(dir, 'doc.html'), '--json']);
+  assert.equal(beside.status, 0, beside.stderr);
+  assert.match(await readFile(join(dir, 'doc.html'), 'utf8'), /<img src="assets\/pixel\.png"/);
+});

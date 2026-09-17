@@ -41,6 +41,7 @@ export function assetPathProblem(src: string): string | undefined {
   if (typeof src !== 'string' || !wellFormed(src) || /[\x00-\x1f\x7f\\]/.test(src) || src !== src.trim() || !src)
     return 'Asset path must be a nonempty trimmed single-line Unicode string without control characters or backslashes.';
   if (src.startsWith('/') || /^[A-Za-z]:/.test(src)) return 'Asset path must be relative to the document folder, not absolute or drive-qualified.';
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(src)) return 'Asset path must not carry a URL scheme.';
   const segments = src.split('/');
   if (segments.some(segment => !segment || segment === '.' || segment === '..')) return 'Asset path must not contain empty, dot, or dot-dot segments.';
   const name = segments.at(-1)!.toLowerCase();

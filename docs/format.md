@@ -124,7 +124,7 @@ Figure의 `range`는 annotation 한 줄이며 `idRange`(quote 제외), `srcRange
 
 ID 있는 Figure는 Table과 별도 계열로 문서 순서 1부터 번호를 가지며 `Figure N`으로 표시된다. `[@fig-id]` 의미 참조와 `[label](#fig-id)` 일반 링크, `renameId`, 중복 ID 거부는 #36의 공통 체계를 공유한다. `insertFigure`는 섹션 직접 본문 끝에 annotation 한 줄만 추가하고 asset 파일을 복사·수정하지 않는다. `setFigureMetadata`는 src/alt/caption의 quote 범위만 최소 patch하며 `src`를 바꿔도 Figure ID와 기존 참조는 유지된다. ID 변경은 `renameId`만 허용한다.
 
-저장·export는 결과 문서의 asset 검증에 실패하면 원본 파일과 출력을 변경하지 않는다. stdin처럼 asset root가 없는 입력은 이 자원 검증을 건너뛰며, `validate --stdin`의 결과가 asset 존재를 보장하지 않는다. HTML export는 linked-assets 방식으로 출력 옆의 상대 경로를 가리키므로 문서와 `assets/`를 함께 옮겨야 하며, 세션 URL·절대 경로를 출력에 저장하지 않는다.
+저장·export는 결과 문서의 asset 검증에 실패하면 원본 파일과 출력을 변경하지 않는다. stdin처럼 asset root가 없는 입력은 이 자원 검증을 건너뛰며, `validate --stdin`의 결과가 asset 존재를 보장하지 않는다. HTML export는 linked-assets 방식으로 `--output` 위치 기준의 상대 URL을 기록하며, 문서와 `assets/`의 상대 배치를 유지해 함께 옮겨야 한다. 세션 URL·절대 경로를 출력에 저장하지 않는다.
 
 0.0.4 → 0.0.5는 Block union에 `Figure`가 추가되는 호환성 변경이다. 기존 literal `@figure` 텍스트는 새 구문으로 해석될 수 있으므로 escape/code를 사용한다. 파일 자동 migration은 없고 소비자는 재파싱 후 figure 분기를 추가한다. Renderer의 figure는 snapshot의 reference context가 필수이며 파일을 읽지 않고 호스트의 URL mapping만 사용한다. CLI envelope와 batch schemaVersion은 1을 유지한다. 근거는 [Proposed ADR 0013](adr/0013-figure-local-assets.md)이다.
 
