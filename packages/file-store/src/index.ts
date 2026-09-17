@@ -1,4 +1,5 @@
 export { parseJsonInput } from './json.js';
+export { ASSET_LIMITS, resolveDocumentAssets, readDocumentAsset, sniffImage, type AssetDiagnostic, type AssetLimits, type AssetReport, type ResolvedAsset } from './asset.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, open, readFile, rename, unlink, link } from 'node:fs/promises';
 import { dirname, basename, join, parse, resolve, sep } from 'node:path';

@@ -1,4 +1,4 @@
-# CLI 사용과 자동화 계약 · v0.0.4
+# CLI 사용과 자동화 계약 · v0.0.5
 
 이 문서는 현재 CLI의 명령과 입출력 계약을 설명한다. 장기 목표는 [제품 비전](product.md), 문법·편집 의미·크기 제한은 [파일 계약](format.md), 저장 보장은 [아키텍처](architecture.md)를 따른다. API와 문법은 실험 단계다.
 
@@ -23,6 +23,22 @@ pnpm exec narudoc id rename practice.narudoc --id tab-parameters --new-id tab-vo
 pnpm exec narudoc render practice.narudoc --to html --output references.html
 ```
 
+### Figure와 로컬 asset
+
+`figure insert FILE --section ID --id FIG --src assets/image.png --alt TEXT [--caption TEXT]`는 섹션 직접 본문 끝에 `@figure` 한 줄을 추가한다. `src`는 문서 폴더 기준 `/` 상대 경로이며 기존 PNG/JPEG/WebP 파일이어야 한다. `figure set FILE --id FIG [--src P] [--alt T] [--caption T]`는 src/alt/caption만 최소 patch하며 ID와 기존 참조는 유지된다. 빈 `--caption ""`은 caption을 제거하고, 빈 `--alt ""`는 장식 이미지의 명시적 선택이다. ID 변경은 `id rename`을 사용한다. 생성/교체는 asset 파일을 복사·수정하지 않는다.
+
+[공개 Figure 예제](../examples/figure-assets.narudoc)를 `assets/` 폴더와 함께 복사하여 다음 흐름을 실행할 수 있다.
+
+```sh
+pnpm exec narudoc figure insert practice.narudoc --section control --id fig-control --src assets/control.png --alt "Control diagram"
+pnpm exec narudoc figure set practice.narudoc --id fig-control --src assets/control-revised.png
+pnpm exec narudoc validate practice.narudoc --json
+```
+
+파일 존재·형식·경로 안전성은 문법 validation과 분리된 resource 검사다. 파일 입력의 `validate`는 이 검사를 `NARU_ASSET_*` 진단으로 포함하며 error가 있으면 종료 코드 3이다. `--stdin`은 asset root가 없으므로 자원 검사를 건너뛴다. 기존 문서의 모든 편집·`batch`·`render`는 결과 문서의 asset이 유효할 때만 쓰며, 실패 시 원본과 출력을 변경하지 않는다. `render`의 figure `<img>`는 linked URL이다. stdout 출력과 web export(문서 옆 `FILE.html`)는 문서 기준 상대 경로를 percent-encode하고, `--output`이 다른 디렉터리면 그 위치에서 asset까지의 상대 URL로 다시 계산한다. 다른 filesystem root의 출력은 거부한다. 문서와 assets의 상대 배치를 유지해 함께 옮겨야 한다.
+
+### 일반 명령 표
+
 아래 표의 모든 일반 명령은 `--json`을 받을 수 있다. `FILE`은 하나만 지정하며 `--stdin`과 동시에 지정할 수 없다. 알 수 없는 명령·옵션, 반복 옵션과 명령에 맞지 않는 옵션은 인자 오류다.
 
 <!-- generated:commands:start -->
@@ -45,6 +61,8 @@ pnpm exec narudoc render practice.narudoc --to html --output references.html
 | `reference insert FILE` | `--id !`, `--index !`, `--path !`, `--offset !`, `--expected !`, `--target-id !`, `--revision`, `--dry-run` | Insert a semantic table reference at an ordinary paragraph inline boundary. |
 | `reference set-target FILE` | `--id !`, `--index !`, `--path !`, `--expected-target-id !`, `--target-id !`, `--revision`, `--dry-run` | Change one paragraph semantic reference destination. |
 | `directive insert FILE` | `--section !`, `--from !`, `--revision`, `--dry-run` | Append a generic directive from an authoring object. |
+| `figure insert FILE` | `--section !`, `--id !`, `--src !`, `--alt !`, `--caption`, `--revision`, `--dry-run` | Append a figure referencing an existing image next to the document. |
+| `figure set FILE` | `--id !`, `--src`, `--alt`, `--caption`, `--revision`, `--dry-run` | Change a figure src, alt or caption while keeping its ID and references. |
 | `id rename FILE` | `--id !`, `--new-id !`, `--revision`, `--dry-run` | Rename an ID and its parsed internal references together. |
 | `heading set-title FILE` | `--id !`, `--title !`, `--revision`, `--dry-run` | Change a heading title, retaining its ID and spacing. |
 | `section insert FILE` | `--after !`, `--id !`, `--title !`, `--revision`, `--dry-run` | Insert a sibling section after an existing section. |
@@ -61,7 +79,7 @@ pnpm exec narudoc render practice.narudoc --to html --output references.html
 
 읽기 명령은 `FILE` 대신 `-` 또는 `--stdin`을 사용할 수 있다. 기존 문서 편집과 `new`는 실제 파일 경로가 필요하다. `--to`는 `html`만 지원한다. `new`와 `render --output`은 기존 파일을 덮어쓰지 않는다.
 
-`--help` 또는 인자 없는 실행은 전체 안내를, `table --help`는 그룹 안내를, `table set-cell --help`는 해당 옵션·index·예제·오류 복구를 출력한다. Help는 문서 파일을 읽거나 수정하지 않는다. `--help --json`도 텍스트다. `--version`은 버전 텍스트, `--version --json`은 `{"version":"0.0.3"}`을 출력한다. 이 특수 응답들은 일반 문서 envelope를 사용하지 않는다.
+`--help` 또는 인자 없는 실행은 전체 안내를, `table --help`는 그룹 안내를, `table set-cell --help`는 해당 옵션·index·예제·오류 복구를 출력한다. Help는 문서 파일을 읽거나 수정하지 않는다. `--help --json`도 텍스트다. `--version`은 버전 텍스트, `--version --json`은 `{"version":"0.0.5"}`을 출력한다. 이 특수 응답들은 일반 문서 envelope를 사용하지 않는다.
 
 ## JSON 응답
 
@@ -118,7 +136,7 @@ Range는 `{ start, end }`이고 UTF-16 code unit 기준 `[start, end)`이다. �
 | 0 | 성공 또는 error 진단 없는 validation | warning은 허용 |
 | 1 | 내부/미분류 오류 | `NARU_INTERNAL` 등 아래 분류에 없는 실행 오류 |
 | 2 | 인자 또는 대상 오류 | `NARU_ARGUMENT`, `NARU_TARGET` |
-| 3 | 문서·encoding 오류 | `NARU_INVALID_DOCUMENT`, `NARU_ENCODING`; validate의 error 진단 |
+| 3 | 문서·encoding·asset 오류 | `NARU_INVALID_DOCUMENT`, `NARU_ENCODING`, `NARU_ASSET_*`; validate의 error 진단 |
 | 4 | 원본 변경 또는 잠금 충돌 | `NARU_STALE`, `NARU_LOCKED` |
 | 5 | 파일 I/O 또는 크기 제한 | `NARU_IO`, `NARU_LIMIT` |
 

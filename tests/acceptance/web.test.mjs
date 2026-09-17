@@ -78,3 +78,50 @@ test('more than 100 keystrokes are sequential Core batches with one atomic save'
   assert.equal((await call('/api/save', { revision: doc.revision, operations })).status, 200);
   assert.equal(await readFile(file, 'utf8'), '# A {#a}\n\n105');
 });
+test('figure assets use session-scoped opaque URLs and block bad writes and exports', async t => {
+  const { file, editor, call } = await setup(t, '# D {#d}\n\n@figure id="fig-a" src="assets/pixel.png" alt="Diagram" caption="Pixel"\n');
+  await mkdir(join(file, '..', 'assets'));
+  const { copyFile } = await import('node:fs/promises');
+  await copyFile(new URL('../fixtures/assets/pixel.png', import.meta.url), join(file, '..', 'assets', 'pixel.png'));
+  const doc = (await call('/api/document')).body;
+  assert.deepEqual(doc.assetDiagnostics, []);
+  assert.equal(doc.figures.length, 1);
+  assert.equal(doc.figures[0].id, 'fig-a'); assert.equal(doc.figures[0].src, 'assets/pixel.png');
+  assert.match(doc.figures[0].url, /^\/api\/asset\/[0-9a-f]{64}$/);
+  const image = await fetch(editor.origin + doc.figures[0].url); // no Authorization: <img> sends none
+  assert.equal(image.status, 200);
+  assert.equal(image.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await image.arrayBuffer()), await readFile(new URL('../fixtures/assets/pixel.png', import.meta.url)));
+  assert.equal((await fetch(editor.origin + '/api/asset/' + '0'.repeat(64))).status, 404, 'unknown capability id');
+  assert.equal((await fetch(editor.origin + '/api/asset/..%2F..%2Fsecret')).status, 404, 'no path input');
+  assert.equal((await fetch(editor.origin + '/api/document.narudoc')).status, 404);
+  const badHost = await new Promise((ok, fail) => { const req = httpRequest(editor.origin + doc.figures[0].url, { headers: { Host: 'evil.example' } }, res => { res.resume(); ok(res.statusCode); }); req.on('error', fail); req.end(); });
+  assert.equal(badHost, 403, 'Host check still applies to assets');
+  // A result with a missing asset is never saved or exported; the file stays byte-identical.
+  const before = await readFile(file);
+  const missing = await call('/api/save', { revision: doc.revision, operations: [{ type: 'setFigureMetadata', id: 'fig-a', src: 'assets/missing.png' }] });
+  assert.equal(missing.status, 400); assert.equal(missing.body.code, 'NARU_ASSET');
+  assert.equal(missing.body.diagnostics[0].code, 'NARU_ASSET_MISSING');
+  assert.deepEqual(await readFile(file), before);
+  const badExport = await call('/api/export', { revision: doc.revision, operations: [{ type: 'setFigureMetadata', id: 'fig-a', src: 'assets/missing.png' }] });
+  assert.equal(badExport.status, 400);
+  // Export keeps linked relative URLs and stores no session token.
+  const exported = await call('/api/export', { revision: doc.revision, operations: [] });
+  assert.equal(exported.status, 200);
+  const html = await readFile(file + '.html', 'utf8');
+  assert.match(html, /<figure id="fig-a"><img src="assets\/pixel\.png" alt="Diagram"><figcaption>Figure 1: Pixel<\/figcaption><\/figure>/);
+  assert.ok(!html.includes(editor.token) && !html.includes(file), 'no token or absolute path in export');
+});
+test('missing assets stay readable with diagnostics and recover by replacing the source', async t => {
+  const { file, call } = await setup(t, '# D {#d}\n\n@figure id="fig-a" src="assets/missing.png" alt="Gone"\n');
+  const doc = (await call('/api/document')).body;
+  assert.equal(doc.diagnostics.filter(d => d.severity === 'error').length, 0, 'missing assets are not document errors');
+  assert.equal(doc.assetDiagnostics[0].code, 'NARU_ASSET_MISSING');
+  assert.equal(doc.figures[0].url, undefined);
+  const dir = join(file, '..');
+  await mkdir(join(dir, 'assets'), { recursive: true });
+  await writeFile(join(dir, 'assets', 'fixed.png'), await readFile(new URL('../fixtures/assets/pixel.png', import.meta.url)));
+  const saved = await call('/api/save', { revision: doc.revision, operations: [{ type: 'setFigureMetadata', id: 'fig-a', src: 'assets/fixed.png' }] });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.match(await readFile(file, 'utf8'), /src="assets\/fixed\.png"/);
+});

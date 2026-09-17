@@ -6,7 +6,7 @@
 | --- | --- |
 | [apps/cli](../apps/cli/) | 인자 binding·help·출력·공용 저장 호출 |
 | [apps/web](../apps/web/) | 지정 파일 하나의 HTTP 보안·browser UI |
-| [packages/file-store](../packages/file-store/) | 공용 Node UTF-8/revision/lock/atomic save·JSON lexical reader |
+| [packages/file-store](../packages/file-store/) | 공용 Node UTF-8/revision/lock/atomic save·JSON lexical reader·figure asset resolver |
 | [packages/model](../packages/model/) | parsed snapshot·범위와 authoring/operation 실행 입력 계약 |
 | [packages/parser](../packages/parser/) | 지원 문법 파싱과 원본 범위 |
 | [packages/core](../packages/core/) | 조회·target 해석·validation·의미 편집·순차 transaction |

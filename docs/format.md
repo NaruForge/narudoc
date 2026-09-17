@@ -1,4 +1,4 @@
-# NaruDoc 0.0.4 파일 문법
+# NaruDoc 0.0.5 파일 문법
 
 ## 범위
 
@@ -111,6 +111,22 @@ ID는 heading/directive/table 전체에서 유일하다. ID 있는 표만 문서
 `insertTable`의 선택적 id/caption으로 생성하고 `setTableMetadata`로 기존 표를 annotation하거나 caption을 편집한다. 생략 필드는 유지, 빈 caption은 제거, 기존 ID 변경은 `renameId`만 허용한다. `insertReference`/`setReferenceTarget`은 section 직접 paragraph의 inline path에서 작성/대상을 변경한다. 삽입은 ordinary text leaf의 UTF-16 offset과 expected를 사용하며 gap은 expected 빈 문자열/offset 0이다. Strong/emphasis 내부는 지원하고 보호 inline 내부는 거부한다. 전체 validation과 의도한 inline shape를 확인한다.
 
 0.0.3 → 0.0.4는 Inline union과 새 예약 구문 해석의 호환성 변경이다. 기존 literal annotation/참조는 새 의미가 될 수 있으므로 literal은 시작자를 escape하거나 code로 표현한다. 파일 자동 migration은 없다. 소비자는 원문을 재파싱하고 reference 분기를 추가한다. CLI envelope와 batch schemaVersion은 1이다. 근거는 [Proposed ADR 0012](adr/0012-table-semantic-references.md)다.
+
+## Figure와 로컬 asset · 0.0.5
+
+섹션 안에서 `@figure id="fig-control" src="assets/control.png" alt="Control diagram" caption="Control layout"` 한 줄이 하나의 Figure 블록이다. `@figure` 다음 공백 또는 줄 끝이 시작자 경계이며, 첫 heading 전의 annotation은 오류다. Code/directive 본문 안의 annotation 모양은 기존 literal 해석을 유지한다. 속성은 표 annotation과 같은 space/tab 구분 `key="JSON string"`이며 순서는 자유다. `id`·`src`·`alt`는 필수이고 `caption`은 선택이다. 중복/알 수 없는 key, 잘못된 ID, 빈 src는 오류다. `alt`는 명시적 빈 문자열(장식 이미지)을 허용한다. `caption`은 표와 같은 한 줄 평문이다.
+
+Figure의 `range`는 annotation 한 줄이며 `idRange`(quote 제외), `srcRange`·`altRange`·`captionRange`(quote 포함), `captionAttributeRange`(앞 공백 포함)는 전체 source UTF-16 범위다. 파일 bytes·절대 경로·브라우저 URL은 source에 저장하지 않는다.
+
+`src`는 문서 폴더 기준의 이식 가능한 상대 경로다. `/`만 구분자로 사용하며 backslash, 절대/drive/UNC 경로, 빈/`.`/`..` segment, 앞뒤 공백, 제어문자를 거부한다. 확장자는 `.png`·`.jpg`·`.jpeg`·`.webp`만 허용한다(대소문자 무관). 공백·한글·`#`·`%`는 파일명의 literal 문자로 저장하며, URL이 필요한 출력은 segment별 percent-encoding만 적용하고 저장 값을 decode하지 않는다.
+
+파일의 존재·실제 형식·크기 검증은 parser/Core가 아니라 CLI·웹이 공유하는 Node resolver(`file-store`)가 수행한다. Core 문서 validation은 Figure 구조·ID·참조만 다루므로, 누락 asset이 있어도 문서는 읽기·편집할 수 있고 진단과 placeholder로 표시한다. Resolver는 실제 bytes의 magic·최소 컨테이너 구조·치수를 검사해 확장자 불일치·위장 HTML·잘린 파일을 거부하고, symlink/junction과 hardlink를 보수적으로 거부한다. 제한값은 파일당 10 MiB, 문서당 합계 64 MiB, Figure 100개, 치수 16384px이다(로컬 편집기 메모리 상한이 이유이며 문서 10 MiB 한도와 별개다). 검사→읽기 사이에 재검사하지만 race-free filesystem sandbox를 보장하지는 않는다.
+
+ID 있는 Figure는 Table과 별도 계열로 문서 순서 1부터 번호를 가지며 `Figure N`으로 표시된다. `[@fig-id]` 의미 참조와 `[label](#fig-id)` 일반 링크, `renameId`, 중복 ID 거부는 #36의 공통 체계를 공유한다. `insertFigure`는 섹션 직접 본문 끝에 annotation 한 줄만 추가하고 asset 파일을 복사·수정하지 않는다. `setFigureMetadata`는 src/alt/caption의 quote 범위만 최소 patch하며 `src`를 바꿔도 Figure ID와 기존 참조는 유지된다. ID 변경은 `renameId`만 허용한다.
+
+저장·export는 결과 문서의 asset 검증에 실패하면 원본 파일과 출력을 변경하지 않는다. stdin처럼 asset root가 없는 입력은 이 자원 검증을 건너뛰며, `validate --stdin`의 결과가 asset 존재를 보장하지 않는다. HTML export는 linked-assets 방식으로 `--output` 위치 기준의 상대 URL을 기록하며, 문서와 `assets/`의 상대 배치를 유지해 함께 옮겨야 한다. 세션 URL·절대 경로를 출력에 저장하지 않는다.
+
+0.0.4 → 0.0.5는 Block union에 `Figure`가 추가되는 호환성 변경이다. 기존 literal `@figure` 텍스트는 새 구문으로 해석될 수 있으므로 escape/code를 사용한다. 파일 자동 migration은 없고 소비자는 재파싱 후 figure 분기를 추가한다. Renderer의 figure는 snapshot의 reference context가 필수이며 파일을 읽지 않고 호스트의 URL mapping만 사용한다. CLI envelope와 batch schemaVersion은 1을 유지한다. 근거는 [Proposed ADR 0013](adr/0013-figure-local-assets.md)이다.
 
 ## 일반 text 위치와 편집
 

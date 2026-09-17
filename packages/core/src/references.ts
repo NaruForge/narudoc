@@ -14,11 +14,13 @@ export function resolveReferences(doc: DocumentSnapshot): ReferenceContext {
   const byId = new Map<string, import('@naruforge/narudoc-model').ReferenceDefinition[]>();
   const blocks = new Set(doc.blocks.flatMap<Block>(block => block.type === 'directive' ? [block, ...block.children] : [block]));
   const context: ReferenceContext = { snapshot: doc, blocks, definitions: [], references: [], diagnostics: [], byNode, byBlock };
-  const seen = new Set<string>(); let number = 0;
+  const seen = new Set<string>(); const counters = { table: 0, figure: 0 };
   for (const block of doc.blocks) if ('id' in block && block.id !== undefined) {
     if (seen.has(block.id)) context.diagnostics.push({ code: 'NARU_DUPLICATE_ID', message: `Duplicate ID: ${block.id}`, severity: 'error', range: block.range });
     seen.add(block.id);
-    context.definitions.push({ id: block.id, block, ...(block.type === 'table' ? { number: ++number, label: `Table ${number}` } : {}) });
+    const numbered = block.type === 'table' || block.type === 'figure';
+    const number = numbered ? ++counters[block.type as 'table' | 'figure'] : 0;
+    context.definitions.push({ id: block.id, block, ...(numbered ? { number, label: `${block.type === 'table' ? 'Table' : 'Figure'} ${number}` } : {}) });
     const definition = context.definitions.at(-1)!; byBlock.set(block, definition);
     const definitions = byId.get(block.id);
     if (definitions) definitions.push(definition); else byId.set(block.id, [definition]);
@@ -30,11 +32,11 @@ export function resolveReferences(doc: DocumentSnapshot): ReferenceContext {
         if (node.type === 'link') { try { id = decodeURIComponent(node.url.slice(1)); } catch { /* diagnosed below */ } }
         const matches = byId.get(id) ?? [], target = matches.length === 1 ? matches[0] : undefined;
         const syntaxError = node.type === 'reference' && (node.malformed || !ID_PATTERN.test(id));
-        const wrongKind = node.type === 'reference' && target && target.block.type !== 'table';
+        const wrongKind = node.type === 'reference' && target && target.block.type !== 'table' && target.block.type !== 'figure';
         const use: ReferenceUse = { block, node, id, ...(!syntaxError && !wrongKind && target ? { target, ...(node.type === 'reference' ? { label: target.label } : {}) } : {}) };
         context.references.push(use);
         byNode.set(node, use);
-        if (syntaxError || wrongKind || !target) context.diagnostics.push({ code: syntaxError ? 'NARU_REFERENCE_SYNTAX' : wrongKind ? 'NARU_REFERENCE_KIND' : 'NARU_REFERENCE', message: syntaxError ? 'Malformed semantic reference.' : wrongKind ? `Semantic reference requires a numbered table: ${id}` : `Broken or ambiguous internal reference: ${id}`, severity: 'error', range: node.type === 'link' ? block.range : node.range ?? block.range });
+        if (syntaxError || wrongKind || !target) context.diagnostics.push({ code: syntaxError ? 'NARU_REFERENCE_SYNTAX' : wrongKind ? 'NARU_REFERENCE_KIND' : 'NARU_REFERENCE', message: syntaxError ? 'Malformed semantic reference.' : wrongKind ? `Semantic reference requires a numbered table or figure: ${id}` : `Broken or ambiguous internal reference: ${id}`, severity: 'error', range: node.type === 'link' ? block.range : node.range ?? block.range });
       }
       if ('children' in node) visit(block, node.children);
     }
@@ -45,7 +47,7 @@ export function resolveReferences(doc: DocumentSnapshot): ReferenceContext {
 export function referenceMetadata(doc: DocumentSnapshot) {
   const context = resolveReferences(doc);
   return {
-    definitions: context.definitions.map(d => ({ id: d.id, kind: d.block.type, range: d.block.range, ...(d.block.type === 'table' ? { caption: d.block.caption ?? null, number: d.number, label: d.label } : {}) })),
+    definitions: context.definitions.map(d => ({ id: d.id, kind: d.block.type, range: d.block.range, ...(d.block.type === 'table' || d.block.type === 'figure' ? { caption: d.block.caption ?? null, number: d.number, label: d.label } : {}) })),
     references: context.references.map(r => ({ kind: r.node.type, targetId: r.id, range: r.node.range, resolved: !!r.target, ...(r.label ? { label: r.label } : {}) })),
   };
 }

@@ -1,12 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { BatchOperationError, NaruError } from '@naruforge/narudoc-model';
 import { resolveReferences, assertValid, parseDocument, planSequence, validateDocument } from '@naruforge/narudoc-core';
-import { renderHtml } from '@naruforge/narudoc-renderer-html';
-import { load, save, createFile, decode, assertDocumentSize, revision, parseJsonInput } from '@naruforge/narudoc-file-store';
+import { renderHtml, assetHref } from '@naruforge/narudoc-renderer-html';
+import { load, save, createFile, decode, assertDocumentSize, revision, parseJsonInput, readDocumentAsset, resolveDocumentAssets } from '@naruforge/narudoc-file-store';
 
 const LIMIT = 10 * 1024 * 1024;
 export const WEB_OPERATION_LIMIT = 10000;
@@ -42,7 +42,7 @@ export async function startEditor(file: string, port = 0) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
     const json = (status: number, value: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); };
     try {
       if (req.headers.host !== origin.slice(7) || (req.headers.origin && req.headers.origin !== origin)) { json(403, { message: 'Host or Origin rejected.' }); return; }
@@ -51,11 +51,29 @@ export async function startEditor(file: string, port = 0) {
         const [asset, type] = assets[route]!;
         res.setHeader('Content-Type', type); res.end(await readFile(new URL(asset, import.meta.url))); return;
       }
+      // Session-scoped capability URLs: ids are HMACs of the current document's figure srcs, never client-supplied paths.
+      const assetId = /^\/api\/asset\/([0-9a-f]{64})$/.exec(route)?.[1];
+      if (req.method === 'GET' && assetId) {
+        const current = await load(path);
+        const figure = parseDocument(current.source).blocks.find(block => block.type === 'figure' && createHmac('sha256', token).update(block.src).digest('hex') === assetId);
+        if (!figure || figure.type !== 'figure') { json(404, { message: 'Unknown or replaced asset.' }); return; }
+        try {
+          const asset = await readDocumentAsset(path, figure.src);
+          res.setHeader('Content-Type', asset.mediaType); res.end(asset.bytes);
+        } catch { json(404, { message: 'Asset is unavailable; repair the figure source.' }); }
+        return;
+      }
       if (!['/api/document', '/api/save', '/api/export'].includes(route)) { json(404, { message: 'Unknown route.' }); return; }
       if (req.headers.authorization !== `Bearer ${token}` || (req.method !== 'GET' && req.headers.origin !== origin)) { json(403, { message: 'Session or Origin rejected.' }); return; }
       if (route === '/api/document' && req.method === 'GET') {
         const current = await load(path);
-        json(200, { file: path, source: current.source, revision: current.revision, diagnostics: validateDocument(parseDocument(current.source)) }); return;
+        const snapshot = parseDocument(current.source);
+        const report = await resolveDocumentAssets(path, snapshot);
+        const figures = snapshot.blocks.filter(block => block.type === 'figure').map(block => ({
+          id: block.id, src: block.src,
+          ...(report.assets.has(block.src) ? { url: `/api/asset/${createHmac('sha256', token).update(block.src).digest('hex')}` } : {}),
+        }));
+        json(200, { file: path, source: current.source, revision: current.revision, diagnostics: validateDocument(snapshot), assetDiagnostics: report.diagnostics, figures }); return;
       }
       if (req.method !== 'POST' || route === '/api/document') { json(405, { message: 'Method not allowed.' }); return; }
       const input = request(await body(req));
@@ -63,11 +81,13 @@ export async function startEditor(file: string, port = 0) {
       if (input.revision !== current.revision) { json(409, { code: 'NARU_STALE', message: 'File changed. Draft retained; reload only when ready to discard it.', latestRevision: current.revision }); return; }
       const next = planSequence(parseDocument(current.source), input.operations, { collectSteps: false }).next;
       assertDocumentSize(next.source);
+      const assetReport = await resolveDocumentAssets(path, next);
+      if (assetReport.diagnostics.length) { json(400, { code: 'NARU_ASSET', message: 'Unresolved figure assets; repair or replace them before writing. Draft retained.', diagnostics: assetReport.diagnostics }); return; }
       if (route === '/api/save') {
         await save(current, next.source);
         json(200, { source: next.source, revision: revision(next.source) });
       } else {
-        const html = renderHtml(next, resolveReferences(next)); const output = path + '.html';
+        const html = renderHtml(next, resolveReferences(next), { assetUrl: assetHref }); const output = path + '.html';
         await createFile(output, html);
         json(200, { output, html });
       }

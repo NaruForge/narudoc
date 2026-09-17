@@ -22,12 +22,17 @@ export interface Code extends Base { type: 'code'; language: string; value: stri
 export interface TableCell extends Base { contentRange: Range; inline: Inline[] }
 export interface TableRow extends Base { cells: TableCell[] }
 export interface Table extends Base { type: 'table'; header: TableRow; separatorRange: Range; rows: TableRow[]; id?: string; caption?: string; annotationRange?: Range; idRange?: Range; captionRange?: Range; captionAttributeRange?: Range }
+/** Single-line @figure annotation. src/alt ranges include their JSON quotes; idRange excludes them. */
+export interface Figure extends Base {
+  type: 'figure'; id: string; src: string; alt: string; caption?: string;
+  idRange: Range; srcRange: Range; altRange: Range; captionRange?: Range; captionAttributeRange?: Range;
+}
 export type DirectiveBodyBlock = Paragraph | List | Code;
 export interface Directive extends Base {
   type: 'directive'; name: string; id?: string; attributes: Attribute[]; children: DirectiveBodyBlock[]; headerEnd: number;
 }
 export interface Metadata extends Base { type: 'metadata'; attributes: Attribute[] }
-export type Block = Heading | Paragraph | List | Code | Directive | Metadata | Table;
+export type Block = Heading | Paragraph | List | Code | Directive | Metadata | Table | Figure;
 export interface DocumentSnapshot {
   source: string; blocks: Block[]; diagnostics: Diagnostic[]; eol: '\n' | '\r\n' | '\r';
 }

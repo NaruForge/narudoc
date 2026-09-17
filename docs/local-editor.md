@@ -1,6 +1,6 @@
 # 단일 문서 로컬 편집기
 
-0.0.4는 [표 annotation과 의미 참조](format.md#표-annotation과-의미-참조--004)의 번호/caption을 표시한다. CLI/API에서 작성한 참조는 보호된 inline이며 클릭하면 편집기 안의 해당 표로 이동한다. 일반 입력으로 목적지를 손상시키지 않으며 주변 문장 편집·Save/Reload는 참조 원문을 유지한다. 별도 table/reference 작성 toolbar는 제공하지 않는다. 원문 ID는 앱 DOM ID로 등록하지 않는다. Invalid 문서의 미해결 참조는 원문형 문자열과 진단으로 표시한다.
+0.0.5는 [표 annotation과 의미 참조](format.md#표-annotation과-의미-참조--004)와 [Figure](format.md#figure와-로컬-asset--005)의 번호/caption을 표시한다. CLI/API에서 작성한 참조는 보호된 inline이며 클릭하면 편집기 안의 해당 표·그림으로 이동한다. 일반 입력으로 목적지를 손상시키지 않으며 주변 문장 편집·Save/Reload는 참조 원문을 유지한다. Figure 본문의 이미지는 보호 블록으로 표시되고 drag/resize는 지원하지 않는다. 별도 table/reference 작성 toolbar는 제공하지 않지만 Figure는 오른쪽 form으로 삽입·교체한다. 원문 ID는 앱 DOM ID로 등록하지 않는다. Invalid 문서의 미해결 참조는 원문형 문자열과 진단으로 표시한다.
 
 저장소 checkout에서 Node22 이상과 고정 pnpm으로 실행한다. npm 배포나 계정은 필요하지 않다.
 
@@ -20,6 +20,8 @@ pnpm narudoc edit ./examples/visual-fidelity.narudoc
 
 오른쪽 도구에서 하위 섹션, 문단, 한 문단 requirement/note를 추가한다. 새 객체의 ID·제목·내용과 문단 위치(0부터)를 입력하며 `.narudoc` delimiter나 JSON은 입력하지 않는다. Directive를 고르고 `status` 등의 generic 속성을 수정할 수 있다. 별도 requirement 상태 schema는 없다. Core가 ID·참조·문법을 검증하고 실패한 form 값은 남는다.
 
+Figure form은 문서 폴더 기준 상대 경로(예: `assets/control.png`)로 기존 PNG/JPEG/WebP를 참조하는 그림을 추가하고, 기존 Figure를 골라 src/alt/caption을 바꾼다. 새 Figure ID는 사용 중이지 않은 `fig-N`을 제안하며, 비워 두면 그 제안이 사용되고 직접 수정도 가능하다. src를 교체해도 Figure ID와 본문 참조는 유지된다. Asset 파일의 업로드·복사·삭제는 제공하지 않으므로 파일은 문서 폴더 안에 미리 둔다. 누락·차단된 asset은 placeholder와 Validation 목록의 `NARU_ASSET_*` 진단으로 표시되며, 유효한 경로로 교체해 복구한다. Asset 진단이 있는 결과는 Save/export가 거부되고 draft는 유지된다.
+
 상단은 파일·미저장 상태를, 오른쪽은 공통 validation의 오류와 경고를 표시한다. 오류 draft/composition 중에는 저장과 구조 변경이 차단된다. 문서 자체가 잘못됐다면 읽기 전용 본문과 진단을 보여준다. ID 없는 heading도 읽을 수 있지만 시각 편집 대상이 아니다. 파일 복구가 필요한 경우 외부에서 수정한 뒤 Reload한다.
 
 Save 전까지 디스크는 변하지 않는다. Save 성공 후 새 revision이 기준이 되지만 byte-exact 의미 역연산이 검증된 문서 편집의 undo/redo history는 유지된다. 상단 Undo/Redo 버튼 또는 편집 영역에서 Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y를 사용한다. Save 뒤에도 직전 문서 gesture를 되돌린 뒤 다시 Save할 수 있다. History는 정해진 개수로 제한되며 오래된 항목이 탈락해도 저장 기준 journal과 현재 source의 replay 일치는 유지한다. 일부 구조 추가 form이나 새 directive 속성처럼 정확한 역연산을 보장하지 않는 operation은 history에 넣지 않고 기존 history도 넘지 못하게 하는 장벽으로 처리한다. Reload·구조 변경에 따른 명시적 session 교체는 history를 초기화한다. 미저장 상태에서 페이지 이탈은 browser 경고를 요청하며, Reload는 draft 폐기 확인을 거친다. 탭 crash/강제 종료에 대한 draft 복구는 없다.
@@ -28,11 +30,13 @@ Save 전까지 디스크는 변하지 않는다. Save 성공 후 새 revision이
 
 CLI/다른 탭에서 먼저 저장하면 Save가 충돌로 실패하고 최신 disk revision을 표시한다. 화면 초안과 디스크 양쪽을 유지하며 자동 덮어쓰기/merge는 없다. 필요 내용을 별도로 보관한 뒤 Reload로 명시적으로 폐기한다. Lock·크기 제한·권한·통신 오류도 초안을 보존한다. 최대 request 10 MiB/10,000 operations이므로 긴 작업은 적절히 나눠 저장한다.
 
-HTML export는 현재 유효 draft를 기존 renderer로 출력하되 `.narudoc`을 저장하지 않는다. 출력은 지정 파일 옆 `FILE.html`이며 이미 있으면 실패한다. 기존 HTML을 덮어쓰지 않는다. 생성된 파일을 browser에서 열 수 있다.
+HTML export는 현재 유효 draft를 기존 renderer로 출력하되 `.narudoc`을 저장하지 않는다. 출력은 지정 파일 옆 `FILE.html`이며 이미 있으면 실패한다. 기존 HTML을 덮어쓰지 않는다. 생성된 파일을 browser에서 열 수 있다. Figure가 있으면 linked-assets 방식으로 문서 기준 상대 경로를 가리키므로 문서와 `assets/`를 함께 옮긴다. 세션 token·절대 경로는 출력에 기록하지 않는다. 결과 문서의 asset이 유효하지 않으면 export도 거부된다.
 
 ## 구조와 보안
 
 [Proposed ADR 0009](adr/0009-local-editor-save-boundary.md)에 저장·인증 경계를 기록한다. 서버는 고정 파일 하나만 접근하고 browser의 raw source 대신 의미 연산을 Core에서 다시 계획한다. 공통 `file-store`가 CLI와 같은 strict UTF-8/SHA-256/lock/pre-save check/임시 파일+rename/10 MiB/symlink·hardlink 제한을 적용한다. No-op은 bytes와 mtime을 유지한다. 완전 OS CAS나 전원 장애 내구성은 보장하지 않는다.
+
+Figure 이미지 요청은 client가 경로를 보내지 않는다. 서버는 현재 문서의 figure src를 세션 token으로 HMAC한 opaque id의 `/api/asset/<id>`만 제공하며, 요청마다 현재 문서와 파일을 다시 검사한다. `<img>`는 Authorization header를 보낼 수 없으므로 이 route는 session-scoped capability URL로 인증을 대신하고 Host/Origin 검사는 유지한다. 이 URL은 문서 원문이나 export HTML에 저장하지 않는다. 응답 Content-Type은 sniff 결과이며 `nosniff`와 CSP `img-src 'self'`를 유지한다.
 
 Host/Origin/session token을 검사하고 CORS를 허용하지 않는다. 고정 route 이외 파일 탐색·path 요청을 받지 않는다. App CSP와 안전 renderer가 document script/raw HTML/위험 URL 실행을 막는다. 서버는 localhost 전용이며 remote 공개/tunnel, 계정/auth server가 없다.
 

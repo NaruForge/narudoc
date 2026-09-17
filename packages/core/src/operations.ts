@@ -8,6 +8,7 @@ import { applyTextEdits, minimalEdit } from './patch.js';
 import { resolveReferences } from './references.js';
 import { referenceEdits, assertReferenceResult, tableMetadataEdits } from './reference-edit.js';
 import { directiveSource, readInsertDirective } from './directive-input.js';
+import { figureMetadataEdits, figureSource } from './figure-edit.js';
 import { planJoinParagraph, planReplaceParagraphRange, planSplitParagraph } from './paragraph-edit.js';
 
 function scalar(value: string, label: string, empty = false): void {
@@ -75,17 +76,26 @@ export function planOperation(doc: DocumentSnapshot, request: Operation): EditPl
       const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
       edits = [{ start: point, end: point, expected: '', text: doc.eol.repeat(2) + directiveSource(input, doc.eol) + right }]; break;
     }
+    case 'insertFigure': {
+      const input = { id: operation.id, src: operation.src, alt: operation.alt, ...(operation.caption === undefined ? {} : { caption: operation.caption }) };
+      const { endIndex: end } = directSectionBody(doc, operation.sectionId);
+      if (doc.blocks.some(block => 'id' in block && block.id === input.id)) throw new NaruError('NARU_ARGUMENT', `ID already exists: ${input.id}`);
+      const point = doc.blocks[end - 1]!.range.end, next = doc.blocks[end];
+      const right = next ? paragraphPadding(source.slice(point, next.range.start), doc.eol, true) : '';
+      edits = [{ start: point, end: point, expected: '', text: doc.eol.repeat(2) + figureSource(input) + right }]; break;
+    }
+    case 'setFigureMetadata': edits = figureMetadataEdits(doc, operation); break;
     case 'renameId': {
       scalar(operation.newId, 'New ID');
       id(operation.newId);
       const node = getById(doc, operation.id);
       if (operation.newId === operation.id) { edits = []; break; }
       if (doc.blocks.some(block => 'id' in block && block.id === operation.newId)) throw new NaruError('NARU_ARGUMENT', `ID already exists: ${operation.newId}`);
-      const range = node.type === 'heading' || node.type === 'table' ? node.idRange : node.type === 'directive' ? node.attributes.find(attr => attr.key === 'id')?.valueRange : undefined;
+      const range = node.type === 'heading' || node.type === 'table' || node.type === 'figure' ? node.idRange : node.type === 'directive' ? node.attributes.find(attr => attr.key === 'id')?.valueRange : undefined;
       let sourceId: string | undefined;
       if (range) {
         sourceId = source.slice(range.start, range.end);
-        if (node.type === 'table') { try { sourceId = JSON.parse('"' + sourceId + '"'); } catch { sourceId = undefined; } }
+        if (node.type === 'table' || node.type === 'figure') { try { sourceId = JSON.parse('"' + sourceId + '"'); } catch { sourceId = undefined; } }
       }
       if (!range || sourceId !== operation.id) throw new NaruError('NARU_PATCH', 'Missing or inconsistent ID source range; reparse the source.');
       edits = minimalEdit(source, range.start, range.end, operation.newId);

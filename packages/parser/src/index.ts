@@ -2,6 +2,7 @@ import { ID_PATTERN, validKey, wellFormed, type Attribute, type Block, type Diag
 import { parseInline } from './inline.js';
 import { parseTableRow } from './table.js';
 import { annotationStart, parseAnnotation } from './annotation.js';
+import { figureStart, parseFigure } from './figure.js';
 export { parseInline } from './inline.js';
 
 interface Line { start: number; end: number; next: number; text: string }
@@ -20,7 +21,7 @@ const headingPattern = /^(#{1,6})[ \t]+/;
 const fencePattern = /^(`{3,}|~{3,})([^\r\n]*)$/;
 const listPattern = /^([-+*]|\d{1,9}[.)])[ \t]+(.*)$/;
 const directivePattern = /^:::([A-Za-z][A-Za-z0-9_-]*)[ \t]*$/;
-const special = (text: string) => headingPattern.test(text) || fencePattern.test(text) || listPattern.test(text) || text.startsWith(':::') || annotationStart(text);
+const special = (text: string) => headingPattern.test(text) || fencePattern.test(text) || listPattern.test(text) || text.startsWith(':::') || annotationStart(text) || figureStart(text);
 
 export function parseDocument(source: string): DocumentSnapshot {
   const all = lines(source), blocks: Block[] = [], diagnostics: Diagnostic[] = [];
@@ -128,6 +129,12 @@ export function parseDocument(source: string): DocumentSnapshot {
       const node: Block = { type: 'directive', name: opening[1]!, attributes: attrs, children, headerEnd: all[split]?.start ?? source.length, range: { start: line.start, end: all[j]?.end ?? source.length } };
       if (id !== undefined) { node.id = id; if (!ID_PATTERN.test(id)) error('NARU_ID', `Invalid ID: ${id}`, line.start, line.end); }
       blocks.push(node); i = j + 1; continue;
+    }
+    if (figureStart(line.text)) {
+      const figure = parseFigure(line.text, line.start, diagnostics);
+      if (!hasHeading) error('NARU_FIGURE', 'A figure annotation must appear inside a section.', line.start, line.end);
+      else if (figure) blocks.push({ ...figure, type: 'figure', range: { start: line.start, end: line.end } });
+      i++; continue;
     }
     let annotation: ReturnType<typeof parseAnnotation> = {};
     if (annotationStart(line.text)) {

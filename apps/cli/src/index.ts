@@ -1,20 +1,26 @@
 import { startEditor, openBrowser } from '@naruforge/narudoc-web';
 import { parseArgs } from 'node:util';
 import { readFile } from 'node:fs/promises';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { BatchOperationError, NaruError, type TextEdit } from '@naruforge/narudoc-model';
 import { resolveReferences, referenceMetadata, assertValid, createDocument, getById, getSection, getTable, targetMetadata, outline, parseDocument, planBatch, planOperation, validateDocument } from '@naruforge/narudoc-core';
-import { renderHtml } from '@naruforge/narudoc-renderer-html';
-import { assertDocumentSize, createFile, load, readStdin, revision, save } from './io.js';
+import { renderHtml, assetHref } from '@naruforge/narudoc-renderer-html';
+import { assertDocumentSize, createFile, load, readStdin, resolveDocumentAssets, revision, save } from './io.js';
 import { parseJsonInput } from './json.js';
 
 import { commands, parseOptions, bindOperation, capabilities, commandHelp } from './commands.js';
 
 function exitCode(error: NaruError): number {
   if (['NARU_ARGUMENT', 'NARU_TARGET'].includes(error.code)) return 2;
-  if (['NARU_INVALID_DOCUMENT', 'NARU_ENCODING'].includes(error.code)) return 3;
+  if (['NARU_INVALID_DOCUMENT', 'NARU_ENCODING'].includes(error.code) || error.code.startsWith('NARU_ASSET')) return 3;
   if (['NARU_STALE', 'NARU_LOCKED'].includes(error.code)) return 4;
   if (['NARU_IO', 'NARU_LIMIT'].includes(error.code)) return 5;
   return 1;
+}
+/** Result documents must reference only readable, in-root, format-verified assets before any write. */
+async function assertAssetsValid(file: string, doc: import('@naruforge/narudoc-model').DocumentSnapshot): Promise<void> {
+  const report = await resolveDocumentAssets(file, doc);
+  if (report.diagnostics.length) throw new NaruError('NARU_ASSET', 'Unresolved figure assets; repair or replace them before writing.', report.diagnostics);
 }
 function preview(edits: TextEdit[]): string {
   if (!edits.length) return 'No changes.\n';
@@ -101,6 +107,7 @@ export async function main(args: string[]): Promise<number> {
         const request = parseJsonInput(text);
         const plan = planBatch(doc, request);
         assertDocumentSize(plan.next.source);
+        await assertAssetsValid(file, plan.next);
         const changed = plan.next.source !== source;
         if (!values['dry-run']) await save(loaded!, plan.next.source);
         if (json) emit({ ...envelope, dryRun: !!values['dry-run'], changed, nextRevision: revision(plan.next.source), steps: plan.steps, diagnostics: validateDocument(plan.next) });
@@ -121,7 +128,9 @@ export async function main(args: string[]): Promise<number> {
         return 0;
       }
       case 'validate': {
-        const diagnostics = validateDocument(doc), valid = !diagnostics.some(d => d.severity === 'error');
+        const assetReport = loaded ? await resolveDocumentAssets(file, doc) : { diagnostics: [] };
+        const diagnostics = [...validateDocument(doc), ...assetReport.diagnostics].sort((a, b) => a.range.start - b.range.start || a.range.end - b.range.end || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
+        const valid = !diagnostics.some(d => d.severity === 'error');
         if (json) emit({ ...envelope, valid, diagnostics }); else {
           for (const d of diagnostics) process.stderr.write(`${file}:${d.range.start} ${d.code}: ${d.message}\n`);
           if (valid) process.stdout.write(`Valid: ${file}\n`);
@@ -130,7 +139,18 @@ export async function main(args: string[]): Promise<number> {
       }
       case 'render': {
         if (need('to') !== 'html') throw new NaruError('NARU_ARGUMENT', 'Only --to html is supported.');
-        assertValid(doc); const html = renderHtml(doc, resolveReferences(doc));
+        assertValid(doc);
+        // stdin has no asset root: it renders the stored relative paths without resource validation.
+        if (loaded) await assertAssetsValid(file, doc);
+        // Linked-assets HTML must resolve from the output location, not the document location.
+        const assetUrl = loaded && values.output
+          ? (src: string): string => {
+              const rel = relative(dirname(resolve(need('output'))), resolve(dirname(loaded.path), src));
+              if (isAbsolute(rel)) throw new NaruError('NARU_ARGUMENT', 'Output must stay on the same filesystem root as the document assets.');
+              return rel.split(sep).map(encodeURIComponent).join('/');
+            }
+          : assetHref;
+        const html = renderHtml(doc, resolveReferences(doc), { assetUrl });
         if (values.output) {
           await createFile(need('output'), html);
           if (json) emit({ ...envelope, output: values.output }); else process.stdout.write(`Rendered ${values.output}\n`);
@@ -141,6 +161,7 @@ export async function main(args: string[]): Promise<number> {
     const operation = await bindOperation(command, values, async input => parseJsonInput(input === '-' ? await readStdin() : (await load(input)).source));
     const plan = planOperation(doc, operation);
     assertDocumentSize(plan.next.source);
+    await assertAssetsValid(file, plan.next);
     if (!values['dry-run']) await save(loaded!, plan.next.source);
     if (json) emit({ ...envelope, dryRun: !!values['dry-run'], changed: plan.edits.length > 0, nextRevision: revision(plan.next.source), edits: plan.edits, diagnostics: validateDocument(plan.next) });
     else if (values['dry-run']) process.stdout.write(preview(plan.edits));
