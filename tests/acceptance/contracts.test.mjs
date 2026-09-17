@@ -10,7 +10,7 @@ import { operationDefinitions, readOperation } from '../../packages/model/dist/i
 import { parseDocument, planOperation, planSequence, planBatch } from '../../packages/core/dist/index.js';
 import { revision, parseJsonInput } from '../../packages/file-store/dist/index.js';
 import { startEditor } from '../../apps/web/dist/index.js';
-import { operationBindings, operationExample, commandHelp, capabilities, checkBindings } from '../../apps/cli/dist/commands.js';
+import { operationBindings, operationExample, commandHelp, capabilities, checkBindings, createCommands, commandReference } from '../../apps/cli/dist/commands.js';
 import { checkGenerated, verifyContracts } from '../../scripts/verify-contracts.mjs';
 
 const cliPath = fileURLToPath(new URL('../../apps/cli/bin/narudoc.mjs', import.meta.url));
@@ -137,6 +137,26 @@ test('all help levels are file-free and capability is bounded; intentional contr
   assert.throws(() => validateInput(changedEnum.setTableCell.input, changedEnum.setTableCell.example), { code: 'NARU_ARGUMENT' });
   assert.throws(() => checkGenerated('stale enum/options reference', 'current reference'), /reference drift/);
   await verifyContracts();
+});
+test('explicit API/batch-only client choice stays discoverable without requiring a standalone command', async t => {
+  const choices = { ...operationBindings, setHeadingTitle: null };
+  checkBindings(operationDefinitions, choices);
+  assert.equal(Object.hasOwn(createCommands(choices), 'heading set-title'), false);
+  assert.equal(Object.hasOwn(createCommands(choices), 'batch'), true);
+  assert.doesNotMatch(commandHelp([], createCommands(choices)), /heading set-title/);
+  assert.doesNotMatch(commandReference(createCommands(choices)), /heading set-title/);
+  assert.equal(capabilities(undefined, choices).operations.find(op => op.type === 'setHeadingTitle').command, 'batch');
+  const example = capabilities('setHeadingTitle', choices).cli;
+  assert.deepEqual(example.json, { schemaVersion: 1, operations: [{ type: 'setHeadingTitle', id: 'control', title: 'Control design' }] });
+  const { dir, file } = await fixture(t), input = join(dir, 'input.json');
+  await writeFile(input, JSON.stringify(example.json));
+  const queried = cli(['inspect', file, '--json']); assert.equal(queried.status, 0, queried.stderr);
+  const currentRevision = JSON.parse(queried.stdout).revision;
+  const args = example.args.map(value => value === 'practice.narudoc' ? file : value === 'input.json' ? input : value === 'SHA256' ? currentRevision : value);
+  const result = cli([...args, '--json']); assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(await readFile(file), Buffer.from(expected.setHeadingTitle));
+  const missing = { ...choices }; delete missing.setHeadingTitle;
+  assert.throws(() => checkBindings(operationDefinitions, missing), /coverage drift/);
 });
 test('exact section and directive paragraph no-op preserve mixed EOL independently', () => {
   const input = '\uFEFF# Control {#control}\r\n\r\nA\nB\rC\r\n\r\n:::note\r\nid: N\r\n\r\nD\nE\rF\r\n:::';
